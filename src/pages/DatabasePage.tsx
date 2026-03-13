@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, List } from 'lucide-react'
-import type { FilterState } from '../types'
+import type { Asset, FilterState } from '../types'
 import { DEFAULT_FILTERS } from '../types'
-import { MOCK_ASSETS } from '../data/mockAssets'
 import SearchPanel from '../components/SearchPanel'
 import AssetGrid from '../components/AssetGrid'
 import StatsBanner from '../components/StatsBanner'
@@ -10,7 +9,7 @@ import AssetListRow from '../components/AssetListRow'
 
 type ViewMode = 'grid' | 'list'
 
-function applyFilters(assets: typeof MOCK_ASSETS, f: FilterState) {
+function applyFilters(assets: Asset[], f: FilterState) {
   return assets.filter(asset => {
     if (f.query) {
       const q = f.query.toLowerCase()
@@ -36,16 +35,24 @@ function applyFilters(assets: typeof MOCK_ASSETS, f: FilterState) {
 }
 
 export default function DatabasePage() {
+  const [assets, setAssets] = useState<Asset[]>([])
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
-  const filtered = useMemo(() => applyFilters(MOCK_ASSETS, filters), [filters])
+  useEffect(() => {
+    fetch('/db-assets.json')
+      .then(r => r.json())
+      .then(setAssets)
+      .catch(console.error)
+  }, [])
+
+  const filtered = useMemo(() => applyFilters(assets, filters), [assets, filters])
 
   return (
     <div className="mx-auto max-w-screen-2xl px-6 py-8">
 
       {/* Stats banner */}
-      <StatsBanner assets={MOCK_ASSETS} />
+      <StatsBanner assets={assets} />
 
       <div className="flex items-start gap-8">
 
@@ -62,9 +69,9 @@ export default function DatabasePage() {
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-300">
-              {filtered.length === MOCK_ASSETS.length
-                ? `All ${MOCK_ASSETS.length} assets`
-                : `${filtered.length} of ${MOCK_ASSETS.length} assets`}
+              {filtered.length === assets.length
+                ? `All ${assets.length} assets`
+                : `${filtered.length} of ${assets.length} assets`}
             </h2>
 
             <div className="flex items-center gap-1 bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5">

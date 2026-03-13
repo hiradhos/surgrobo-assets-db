@@ -1,20 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Header from './components/Header'
 import DatabasePage from './pages/DatabasePage'
 import SubmitPage from './pages/SubmitPage'
-import { MOCK_ASSETS } from './data/mockAssets'
 
 type View = 'database' | 'submit'
 
 export default function App() {
   const [view, setView] = useState<View>('database')
+  const [totalAssets, setTotalAssets] = useState(0)
+
+  useEffect(() => {
+    fetch('/db-assets.json')
+      .then(r => r.json())
+      .then((data: unknown[]) => setTotalAssets(data.length))
+      .catch(console.error)
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#070d1a] bg-grid">
       <Header
         activeView={view}
         onViewChange={setView}
-        totalAssets={MOCK_ASSETS.length}
+        totalAssets={totalAssets}
       />
 
       <main>

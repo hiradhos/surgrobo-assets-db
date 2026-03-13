@@ -43,31 +43,36 @@ _FIELDS = ",".join([
 ])
 
 # Top surgical-robotics conferences/journals that S2 indexes but PubMed/arXiv miss.
-# These are used as venue filters in addition to keyword search.
 TARGET_VENUES: list[str] = [
-    "International Conference on Robotics and Automation",  # ICRA
-    "IEEE/RSJ International Conference on Intelligent Robots and Systems",  # IROS
     "Medical Image Computing and Computer Assisted Intervention",  # MICCAI
     "Hamlyn Symposium on Medical Robotics",
     "International Symposium on Medical Robotics",  # ISMR
-    "IEEE International Conference on Robotics and Biomimetics",  # ROBIO
-    "Conference on Robot Learning",  # CoRL
     "International Journal of Computer Assisted Radiology and Surgery",  # IJCARS
-    "Frontiers in Robotics and AI",
+    "International Conference on Robotics and Automation",  # ICRA
+    "IEEE/RSJ International Conference on Intelligent Robots and Systems",  # IROS
+    "IEEE Transactions on Medical Robotics and Bionics",
+    "Journal of Medical Robotics Research",
 ]
 
-# Search queries — each is a separate API call to maximise coverage.
+# Each query is a separate S2 API call.
+# All queries combine a surgical/anatomical term with a simulation/asset term
+# so that general robot-learning papers are excluded.
 SEARCH_QUERIES: list[str] = [
-    "surgical robot simulation reinforcement learning",
-    "robotic surgery URDF MuJoCo simulation",
-    "da Vinci robot simulation learning",
-    "laparoscopic robot simulation environment",
-    "surgical tissue deformation simulation",
-    "autonomous surgical robot learning",
-    "robot-assisted surgery Isaac Sim",
-    "surgical skill learning simulation",
-    "suturing robot reinforcement learning",
-    "minimally invasive surgery simulation asset",
+    "surgical robot URDF simulation environment",
+    "robotic surgery MuJoCo reinforcement learning",
+    "da Vinci robot simulation asset URDF",
+    "laparoscopic surgery simulation physics environment",
+    "surgical tissue deformation simulation MuJoCo",
+    "minimally invasive surgery simulation URDF model",
+    "surgical suturing robot reinforcement learning simulation",
+    "robot-assisted surgery Isaac Sim simulation",
+    "anatomical model surgical robot simulation",
+    "organ phantom simulation surgical robotics",
+    "surgical phantom 3D model robot learning",
+    "soft tissue simulation surgical robot MJCF",
+    "needle driving robot simulation environment",
+    "surgical dissection simulation reinforcement learning",
+    "intraoperative robot simulation asset model",
 ]
 
 _REQUEST_DELAY = 1.1  # seconds (safe for 1 req/s unauthenticated)

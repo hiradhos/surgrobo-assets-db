@@ -50,27 +50,60 @@ TARGET_JOURNALS: list[str] = [
     "J Neuroeng Rehabil",        # covers surgical neurorobotics
     "IEEE Trans Neural Syst Rehabil Eng",
     "Biomed Eng Online",
+    "Int J Comput Assist Radiol Surg",   # IJCARS
+    "Surg Innov",                # Surgical Innovation
 ]
 
-# Search terms to find relevant papers within those journals.
-# These are combined with OR so any match qualifies.
-PUBMED_TERMS: list[str] = [
+# Two sets of terms — a paper must match at least one from EACH set:
+#   SURGICAL_TERMS  — establishes the surgical/anatomical context
+#   ASSET_TERMS     — establishes that simulation assets or environments are involved
+#
+# The _build_query function ANDs the two clauses together, so a paper must
+# be about surgery AND mention simulation/assets to qualify.
+
+PUBMED_SURGICAL_TERMS: list[str] = [
     "surgical robot",
     "robotic surgery",
     "robot-assisted surgery",
-    "laparoscopic",
+    "laparoscopic surgery",
     "minimally invasive surgery",
-    "surgical simulation",
-    "tissue deformation",
-    "suturing robot",
+    "endoscopic surgery",
     "autonomous surgery",
-    "reinforcement learning surgery",
-    "URDF",
-    "MuJoCo",
-    "simulation environment",
-    "surgical training",
+    "surgical suturing",
     "needle driving",
     "tissue manipulation",
+    "tissue deformation",
+    "soft tissue simulation",
+    "surgical dissection",
+    "surgical phantom",
+    "anatomical model",
+    "organ model",
+    "deformable tissue",
+    "intraoperative",
+    "cholecystectomy",
+    "prostatectomy",
+    "hysterectomy",
+    "anastomosis",
+    "surgical training simulator",
+]
+
+PUBMED_ASSET_TERMS: list[str] = [
+    "URDF",
+    "MJCF",
+    "MuJoCo",
+    "Isaac Sim",
+    "Gazebo",
+    "PyBullet",
+    "simulation environment",
+    "simulation asset",
+    "robot model",
+    "3D model",
+    "physics simulation",
+    "reinforcement learning",
+    "sim-to-real",
+    "robot learning",
+    "simulation platform",
+    "virtual environment",
 ]
 
 _REQUEST_DELAY = 0.4  # seconds between requests (safe for 3 req/s limit)
@@ -234,14 +267,24 @@ def _parse_pubmed_date(art_el: ET.Element) -> datetime:
 
 
 def _build_query(lookback_days: int) -> str:
-    """Build a PubMed query: (journal filter) AND (content terms) AND (date range)."""
+    """
+    Build a PubMed query:
+      (journal filter) AND (surgical terms) AND (asset/sim terms) AND (date range)
+
+    Both content clauses must match so papers are specifically about surgical
+    robotics simulation — not just any surgery or any simulation paper.
+    """
     since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     date_filter = f"{since.strftime('%Y/%m/%d')}:3000/01/01[dp]"
 
-    journal_clause = " OR ".join(f'"{j}"[ta]' for j in TARGET_JOURNALS)
-    term_clause    = " OR ".join(f'"{t}"[tiab]' for t in PUBMED_TERMS)
+    journal_clause  = " OR ".join(f'"{j}"[ta]' for j in TARGET_JOURNALS)
+    surgical_clause = " OR ".join(f'"{t}"[tiab]' for t in PUBMED_SURGICAL_TERMS)
+    asset_clause    = " OR ".join(f'"{t}"[tiab]' for t in PUBMED_ASSET_TERMS)
 
-    return f"({journal_clause}) AND ({term_clause}) AND ({date_filter})"
+    return (
+        f"({journal_clause}) AND ({surgical_clause}) AND ({asset_clause})"
+        f" AND ({date_filter})"
+    )
 
 
 def fetch_papers(

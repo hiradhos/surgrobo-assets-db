@@ -296,11 +296,16 @@ def search_github_for_surgical_repos(page: int = 1) -> list[GitHubRepo]:
     Note: GitHub search API is heavily rate-limited (10 req/min unauth, 30 auth).
     """
     QUERIES = [
-        "surgical robot URDF simulation",
-        "surgical robot USD Isaac Sim",
-        "da Vinci robot MuJoCo",
-        "laparoscopic simulation URDF STL",
-        "robotic surgery reinforcement learning MJCF",
+        "surgical robot URDF simulation laparoscopic",
+        "da Vinci robot simulation URDF MuJoCo",
+        "surgical robot Isaac Sim URDF anatomy",
+        "robotic surgery MuJoCo MJCF simulation",
+        "laparoscopic surgery simulation URDF STL phantom",
+        "surgical phantom organ model URDF STL",
+        "minimally invasive surgery simulation asset",
+        "anatomical model surgical robot URDF",
+        "tissue deformation simulation surgical robot",
+        "suturing robot simulation URDF MuJoCo",
     ]
 
     repos: list[GitHubRepo] = []

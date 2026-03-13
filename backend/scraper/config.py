@@ -14,6 +14,16 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
+# ── Anthropic ──────────────────────────────────────────────────────────────────
+
+# API key for the Claude classifier (Phase 5). Set in .env or environment.
+# If unset, Phase 5 is skipped and repos will have no category labels.
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+
+# Model used for repo classification.
+CLASSIFIER_MODEL: str = os.getenv("CLASSIFIER_MODEL", "claude-opus-4-6")
+
+
 # ── GitHub ─────────────────────────────────────────────────────────────────────
 
 # Personal access token — requires public_repo scope only.
@@ -33,13 +43,12 @@ MIN_STARS: int = int(os.getenv("MIN_STARS", "0"))
 # ── arXiv ──────────────────────────────────────────────────────────────────────
 
 # arXiv categories to search within.
+# Kept tight: cs.RO (robotics) and cs.CV (surgical vision) are the primary homes
+# for surgical-robotics simulation papers; eess.IV covers medical image analysis.
 ARXIV_CATEGORIES: list[str] = [
     "cs.RO",   # robotics
-    "cs.AI",   # AI / agents
-    "cs.LG",   # machine learning / RL
     "cs.CV",   # computer vision (surgical video, segmentation)
-    "cs.GR",   # graphics (3-D assets, rendering)
-    "eess.SY", # systems & control
+    "eess.IV", # image and video processing (medical imaging / anatomy)
 ]
 
 # Free-text search terms sent to the arXiv API.
@@ -48,73 +57,82 @@ ARXIV_CATEGORIES: list[str] = [
 #   • Terms within a cluster are OR-combined.
 #   • Clusters are AND-combined with each other.
 #
-# Using a SINGLE cluster (list of one sub-list) means a pure OR search —
-# any paper mentioning any of these terms will be fetched.  This is
-# intentionally broad: the asset-detection step at the GitHub level does
-# the real filtering.  Better to over-fetch papers and find repos than to
-# miss them because an abstract never used the word "simulation".
+# TWO clusters means a paper must match BOTH to be returned:
+#   Cluster 1 — surgical / anatomical context  (filters out general robotics)
+#   Cluster 2 — simulation / asset context     (filters out pure clinical papers)
+#
+# This prevents general robot-learning papers (e.g. dexterous-hand manipulation,
+# quadruped locomotion) from being included just because they use MuJoCo/URDF.
 ARXIV_QUERY_CLUSTERS: list[list[str]] = [
+    # ── Cluster 1: surgical / anatomical context (must match at least one) ──
     [
-        # ── surgical platforms ──────────────────────────────────────────
+        # surgical platforms
         "surgical robot",
         "robotic surgery",
         "robot-assisted surgery",
         "autonomous surgery",
         "da Vinci",
         "Versius",
-        "RAVEN II",
+        "RAVEN-II",
         "Senhance",
         "Hugo RAS",
-        # ── procedure / anatomy terms ───────────────────────────────────
-        "laparoscopic",
-        "endoscopic",
+        "laparoscopic robot",
+        "endoscopic robot",
+        # procedures / clinical context
+        "laparoscopic surgery",
+        "endoscopic surgery",
         "minimally invasive surgery",
         "cholecystectomy",
         "prostatectomy",
         "hysterectomy",
         "anastomosis",
-        "suturing",
+        "surgical suturing",
         "needle driving",
-        "tissue manipulation",
+        "surgical dissection",
+        "surgical cutting",
+        "intraoperative",
+        "trocar",
+        "instrument tracking",
+        # anatomy / tissue
+        "anatomical model",
+        "organ model",
         "tissue deformation",
-        "soft tissue",
-        # ── simulation / environment terms ──────────────────────────────
-        "surgical simulation",
-        "robot simulation",
-        "sim-to-real",
+        "soft tissue simulation",
+        "surgical phantom",
+        "deformable organ",
+        "abdominal anatomy",
+        "surgical training simulation",
+    ],
+    # ── Cluster 2: simulation / asset context (must match at least one) ────
+    [
+        "URDF",
+        "MJCF",
+        "MuJoCo",
         "Isaac Sim",
         "Isaac Lab",
-        "ORBIT simulation",
-        "MuJoCo",
-        "Gazebo",
+        "Gazebo simulation",
         "PyBullet",
-        "SAPIEN",
-        "robosuite",
-        # ── asset / format terms ─────────────────────────────────────────
-        "URDF",
+        "SAPIEN simulator",
         "USD scene",
         "Universal Scene Description",
-        "MJCF",
+        "simulation environment",
         "robot model",
-        "phantom model",
         "3D mesh",
-        # ── learning paradigms ───────────────────────────────────────────
-        "reinforcement learning",
-        "imitation learning",
-        "learning from demonstration",
-        "surgical skill",
-        "surgical training",
-        "dexterous manipulation",
-        "teleoperation",
+        "simulation asset",
+        "physics simulation",
+        "robot description format",
+        "sim-to-real transfer",
+        "reinforcement learning environment",
+        "robot learning simulation",
     ],
 ]
 
 # How many days back to search on each incremental weekly run.
-# Use --lookback-days on the CLI to override for a one-off back-fill.
-ARXIV_LOOKBACK_DAYS: int = int(os.getenv("ARXIV_LOOKBACK_DAYS", "90"))
+# Set to 5 years for the initial back-fill; weekly runs override this via CLI.
+ARXIV_LOOKBACK_DAYS: int = int(os.getenv("ARXIV_LOOKBACK_DAYS", "1825"))
 
 # Maximum papers to retrieve per run (arXiv API hard cap is 2000).
-ARXIV_MAX_RESULTS: int = int(os.getenv("ARXIV_MAX_RESULTS", "500"))
+ARXIV_MAX_RESULTS: int = int(os.getenv("ARXIV_MAX_RESULTS", "2000"))
 
 # Seconds to wait between arXiv API requests (be a good citizen).
 ARXIV_REQUEST_DELAY: float = float(os.getenv("ARXIV_REQUEST_DELAY", "3.0"))

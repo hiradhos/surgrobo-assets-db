@@ -119,9 +119,23 @@ def _connect(db_path: Path = config.DB_PATH) -> Generator[sqlite3.Connection, No
         conn.close()
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply incremental schema changes that cannot go in _DDL (existing tables)."""
+    migrations = [
+        "ALTER TABLE repos ADD COLUMN category TEXT",
+        "ALTER TABLE repos ADD COLUMN category_reason TEXT",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+
 def init_db(db_path: Path = config.DB_PATH) -> None:
     with _connect(db_path) as conn:
         conn.executescript(_DDL)
+        _migrate(conn)
     log.info("Database initialised at %s", db_path)
 
 

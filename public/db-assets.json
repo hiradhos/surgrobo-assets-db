@@ -1,0 +1,221 @@
+[
+  {
+    "id": "db-1",
+    "name": "Integration of the TIAGo Robot into Isaac Sim with Mecanum Drive Modeling and Learned S-Curve Velocity Profiles",
+    "description": "",
+    "fileTypes": [
+      "OBJ",
+      "USD"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2510.10273",
+    "arxivTitle": "Integration of the TIAGo Robot into Isaac Sim with Mecanum Drive Modeling and Learned S-Curve Velocity Profiles",
+    "githubRepo": "AIS-Bonn/tiago_isaac",
+    "githubStars": 13,
+    "authors": [
+      "Vincent Schoenbach",
+      "Marvin Wiedemann",
+      "Raphael Memmesheimer",
+      "Malte Mosbach",
+      "Sven Behnke"
+    ],
+    "year": 2025,
+    "tags": [],
+    "downloadUrl": "https://github.com/AIS-Bonn/tiago_isaac",
+    "license": "AGPL-3.0",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#8b5cf6"
+  },
+  {
+    "id": "db-2",
+    "name": "Surgical Gym: A high-performance GPU-based platform for reinforcement learning with surgical robots",
+    "description": "High-performance GPU-based simulation platform for reinforcement learning with surgical robot learning",
+    "fileTypes": [
+      "USD"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2310.04676",
+    "arxivTitle": "Surgical Gym: A high-performance GPU-based platform for reinforcement learning with surgical robots",
+    "githubRepo": "SamuelSchmidgall/SurgicalGym",
+    "githubStars": 100,
+    "authors": [
+      "Samuel Schmidgall",
+      "Axel Krieger",
+      "Jason Eshraghian"
+    ],
+    "year": 2023,
+    "tags": [],
+    "downloadUrl": "https://github.com/SamuelSchmidgall/SurgicalGym",
+    "license": "MIT",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#06b6d4"
+  },
+  {
+    "id": "db-3",
+    "name": "Autonomous Soft Tissue Retraction Using Demonstration-Guided Reinforcement Learning",
+    "description": "",
+    "fileTypes": [
+      "OBJ",
+      "STL",
+      "URDF"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2309.00837",
+    "arxivTitle": "Autonomous Soft Tissue Retraction Using Demonstration-Guided Reinforcement Learning",
+    "githubRepo": "amritpal-001/tissue_retract",
+    "githubStars": 2,
+    "authors": [
+      "Ashutosh Kumar Singh",
+      "Wenqi Shi",
+      "M. D. Wang"
+    ],
+    "year": 2023,
+    "tags": [],
+    "downloadUrl": "https://github.com/Amritpal-001/tissue_retract",
+    "license": "MIT",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#10b981"
+  },
+  {
+    "id": "db-4",
+    "name": "Three-Dimensional Collision Avoidance Method for Robot-Assisted Minimally Invasive Surgery",
+    "description": "",
+    "fileTypes": [
+      "OBJ",
+      "STL"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "github",
+    "arxivId": null,
+    "arxivTitle": null,
+    "githubRepo": "cynerelee/collision-avoidance",
+    "githubStars": 1,
+    "authors": [
+      "Ling Li",
+      "Xiaojian Li",
+      "Bo Ouyang",
+      "Hangjie Mo",
+      "Hongliang Ren",
+      "Shanlin Yang"
+    ],
+    "year": 2023,
+    "tags": [],
+    "downloadUrl": "https://github.com/cynerelee/collision-avoidance",
+    "license": null,
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#f59e0b"
+  },
+  {
+    "id": "db-5",
+    "name": "DualTHOR: A Dual-Arm Humanoid Simulation Platform for Contingency-Aware Planning",
+    "description": "",
+    "fileTypes": [
+      "DAE",
+      "FBX",
+      "MJCF",
+      "STL",
+      "URDF"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2506.16012",
+    "arxivTitle": "DualTHOR: A Dual-Arm Humanoid Simulation Platform for Contingency-Aware Planning",
+    "githubRepo": "ds199895/DualTHOR",
+    "githubStars": 6,
+    "authors": [
+      "Boyu Li",
+      "Siyuan He",
+      "Hang Xu",
+      "Haoqi Yuan",
+      "Yu Zang",
+      "Liwei Hu",
+      "Junpeng Yue",
+      "Zhenxiong Jiang",
+      "Pengbo Hu",
+      "B\u00f6rje F. Karlsson",
+      "Yehui Tang",
+      "Zongqing Lu"
+    ],
+    "year": 2025,
+    "tags": [],
+    "downloadUrl": "https://github.com/ds199895/DualTHOR",
+    "license": "MIT",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#ec4899"
+  },
+  {
+    "id": "db-6",
+    "name": "Sim-to-Real Transfer for Mobile Robots with Reinforcement Learning: from NVIDIA Isaac Sim to Gazebo and Real ROS 2 Robots",
+    "description": "This repository is an extended version of the OmniIsaacGymEnvs repository, incorporating reinforcement learning for mobile robot navigation using 2D LiDAR.",
+    "fileTypes": [
+      "USD"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2501.02902",
+    "arxivTitle": "Sim-to-Real Transfer for Mobile Robots with Reinforcement Learning: from NVIDIA Isaac Sim to Gazebo and Real ROS 2 Robots",
+    "githubRepo": "sahars93/RL-Navigation",
+    "githubStars": 87,
+    "authors": [
+      "Sahar Salimpour",
+      "J. P. Queralta",
+      "Diego Paez-Granados",
+      "J. Heikkonen",
+      "Tomi Westerlund"
+    ],
+    "year": 2025,
+    "tags": [],
+    "downloadUrl": "https://github.com/sahars93/RL-Navigation",
+    "license": "NOASSERTION",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#3b82f6"
+  },
+  {
+    "id": "db-7",
+    "name": "CRESSim\u2013MPM: A Material Point Method Library for Surgical Soft Body Simulation with Cutting and Suturing",
+    "description": "A real-time material point method (MPM) simulation library using CUDA.",
+    "fileTypes": [
+      "OBJ"
+    ],
+    "patientType": "generic",
+    "organSystem": "general",
+    "surgicalSystem": "generic",
+    "rlFrameworks": [],
+    "sourceType": "arxiv",
+    "arxivId": "2502.18437",
+    "arxivTitle": "CRESSim\u2013MPM: A Material Point Method Library for Surgical Soft Body Simulation with Cutting and Suturing",
+    "githubRepo": "yafei-ou/CRESSim-MPM",
+    "githubStars": 28,
+    "authors": [
+      "Yafei Ou",
+      "Mahdi Tavakoli"
+    ],
+    "year": 2025,
+    "tags": [],
+    "downloadUrl": "https://github.com/yafei-ou/CRESSim-MPM",
+    "license": "BSD-3-Clause",
+    "addedAt": "2026-03-13",
+    "thumbnailColor": "#ef4444"
+  }
+]

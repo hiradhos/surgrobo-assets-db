@@ -37,6 +37,7 @@ from pathlib import Path
 import schedule
 
 from . import config, db
+from .export import export_assets
 from .arxiv_client import fetch_papers as fetch_arxiv_papers
 from .pubmed_client import fetch_papers as fetch_pubmed_papers
 from .semantic_scholar_client import fetch_papers as fetch_s2_papers
@@ -270,6 +271,11 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
 
     with db._connect() as conn:
         db.finish_run(run_id, run, conn)
+
+    # ── Phase 6: Export to frontend JSON ──────────────────────────────────────
+
+    log.info("Phase 6: exporting assets to public/db-assets.json …")
+    export_assets()
 
     log.info("=" * 60)
     log.info(
