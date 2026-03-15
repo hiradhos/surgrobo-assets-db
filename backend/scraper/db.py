@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Generator
 
 from . import config
-from .models import FileType, GitHubRepo, Paper, ScrapeRun
+from .models import AnatomyRecord, FileType, GitHubRepo, Paper, ScrapeRun
 
 log = logging.getLogger(__name__)
 
@@ -100,6 +100,33 @@ CREATE TABLE IF NOT EXISTS scrape_runs (
     assets_updated  INTEGER NOT NULL DEFAULT 0,
     errors          TEXT NOT NULL DEFAULT '[]'
 );
+
+-- Anatomy records from dedicated 3D anatomy databases (not GitHub/paper-derived)
+CREATE TABLE IF NOT EXISTS anatomy_records (
+    record_id        TEXT PRIMARY KEY,   -- "<source>:<unique-id>"
+    source_collection TEXT NOT NULL,    -- humanatlas | medshapenet | nih3d | bodyparts3d | anatomytool | sketchfab | other
+    name             TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    body_part        TEXT NOT NULL DEFAULT '',   -- liver | heart | femur | brain | etc.
+    organ_system     TEXT NOT NULL DEFAULT 'general',
+    age_group        TEXT NOT NULL DEFAULT 'adult',      -- adult | pediatric | fetal | generic
+    sex              TEXT NOT NULL DEFAULT 'unknown',    -- male | female | unknown
+    condition_type   TEXT NOT NULL DEFAULT 'healthy',   -- healthy | tumor | fracture | defect | variant | pathologic | unknown
+    creation_method  TEXT NOT NULL DEFAULT 'unknown',   -- ct-scan | mri | photogrammetry | synthetic | anatomist | cadaver | unknown
+    file_types       TEXT NOT NULL DEFAULT '[]',        -- JSON array of strings
+    download_url     TEXT NOT NULL DEFAULT '',
+    preview_url      TEXT NOT NULL DEFAULT '',
+    license          TEXT NOT NULL DEFAULT '',
+    tags             TEXT NOT NULL DEFAULT '[]',        -- JSON array
+    authors          TEXT NOT NULL DEFAULT '[]',        -- JSON array
+    year             INTEGER,
+    discovered_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_anatomy_source     ON anatomy_records(source_collection);
+CREATE INDEX IF NOT EXISTS idx_anatomy_organ      ON anatomy_records(organ_system);
+CREATE INDEX IF NOT EXISTS idx_anatomy_condition  ON anatomy_records(condition_type);
+CREATE INDEX IF NOT EXISTS idx_anatomy_body_part  ON anatomy_records(body_part);
 """
 
 
@@ -122,8 +149,14 @@ def _connect(db_path: Path = config.DB_PATH) -> Generator[sqlite3.Connection, No
 def _migrate(conn: sqlite3.Connection) -> None:
     """Apply incremental schema changes that cannot go in _DDL (existing tables)."""
     migrations = [
+        # Classifier labels for GitHub-sourced repos
         "ALTER TABLE repos ADD COLUMN category TEXT",
         "ALTER TABLE repos ADD COLUMN category_reason TEXT",
+        # Anatomy metadata for GitHub-sourced assets (populated by classifier)
+        "ALTER TABLE assets ADD COLUMN body_part TEXT",
+        "ALTER TABLE assets ADD COLUMN condition_type TEXT",
+        "ALTER TABLE assets ADD COLUMN creation_method TEXT",
+        "ALTER TABLE assets ADD COLUMN sex TEXT",
     ]
     for sql in migrations:
         try:
@@ -330,3 +363,67 @@ def connect_ro(db_path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# ── Anatomy record CRUD ────────────────────────────────────────────────────────
+
+def upsert_anatomy_record(rec: AnatomyRecord, conn: sqlite3.Connection) -> bool:
+    """Insert or update an anatomy record. Returns True if it was newly inserted."""
+    cur = conn.execute(
+        "SELECT record_id FROM anatomy_records WHERE record_id = ?", (rec.record_id,)
+    )
+    exists = cur.fetchone() is not None
+
+    conn.execute(
+        """
+        INSERT INTO anatomy_records
+            (record_id, source_collection, name, description, body_part,
+             organ_system, age_group, sex, condition_type, creation_method,
+             file_types, download_url, preview_url, license, tags, authors, year)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(record_id) DO UPDATE SET
+            name             = excluded.name,
+            description      = excluded.description,
+            body_part        = excluded.body_part,
+            organ_system     = excluded.organ_system,
+            age_group        = excluded.age_group,
+            sex              = excluded.sex,
+            condition_type   = excluded.condition_type,
+            creation_method  = excluded.creation_method,
+            file_types       = excluded.file_types,
+            download_url     = excluded.download_url,
+            preview_url      = excluded.preview_url,
+            license          = excluded.license,
+            tags             = excluded.tags,
+            authors          = excluded.authors,
+            year             = excluded.year
+        """,
+        (
+            rec.record_id,
+            rec.source_collection,
+            rec.name,
+            rec.description,
+            rec.body_part,
+            rec.organ_system,
+            rec.age_group,
+            rec.sex,
+            rec.condition_type,
+            rec.creation_method,
+            json.dumps(rec.file_types),
+            rec.download_url,
+            rec.preview_url,
+            rec.license,
+            json.dumps(rec.tags),
+            json.dumps(rec.authors),
+            rec.year,
+        ),
+    )
+    return not exists
+
+
+def get_known_anatomy_ids(conn: sqlite3.Connection) -> set[str]:
+    return {r["record_id"] for r in conn.execute("SELECT record_id FROM anatomy_records").fetchall()}
+
+
+def get_anatomy_records(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM anatomy_records ORDER BY source_collection, name").fetchall()

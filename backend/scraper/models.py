@@ -135,6 +135,36 @@ class Asset:
 
 
 @dataclass
+class AnatomyRecord:
+    """
+    A 3D anatomy asset from a dedicated anatomy database (not a GitHub/paper repo).
+
+    record_id uses the format "<source_collection>:<unique-id>", e.g.
+      "humanatlas:VH_F_Liver"
+      "nih3d:3DPX-001440"
+      "medshapenet:liver_0001"
+    """
+    record_id: str
+    source_collection: str          # humanatlas | medshapenet | nih3d | bodyparts3d | anatomytool | sketchfab | other
+    name: str
+    description: str = ""
+    body_part: str = ""             # liver | heart | femur | brain | kidney | etc.
+    organ_system: str = "general"   # matches OrganSystem in frontend
+    age_group: str = "adult"        # adult | pediatric | fetal | generic
+    sex: str = "unknown"            # male | female | unknown
+    condition_type: str = "healthy" # healthy | tumor | fracture | defect | variant | pathologic | unknown
+    creation_method: str = "unknown"# ct-scan | mri | photogrammetry | synthetic | anatomist | cadaver | unknown
+    file_types: list[str] = field(default_factory=list)
+    download_url: str = ""
+    preview_url: str = ""
+    license: str = ""
+    tags: list[str] = field(default_factory=list)
+    authors: list[str] = field(default_factory=list)
+    year: Optional[int] = None
+    discovered_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
 class ScrapeRun:
     started_at: datetime
     finished_at: Optional[datetime] = None

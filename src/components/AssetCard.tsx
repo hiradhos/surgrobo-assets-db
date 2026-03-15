@@ -8,10 +8,11 @@ interface AssetCardProps {
 }
 
 const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
-  arxiv:   { label: 'arXiv',        className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  github:  { label: 'GitHub',       className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  dataset: { label: 'Dataset Hub',  className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  manual:  { label: 'Manual Entry', className: 'bg-gray-500/10 text-gray-400 border-gray-500/20' },
+  arxiv:            { label: 'arXiv',        className: 'bg-red-500/10 text-red-400 border-red-500/20' },
+  github:           { label: 'GitHub',       className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  'atlas-database': { label: 'Atlas DB',     className: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
+  dataset:          { label: 'Dataset Hub',  className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  manual:           { label: 'Manual Entry', className: 'bg-gray-500/10 text-gray-400 border-gray-500/20' },
 }
 
 const PATIENT_BADGE: Record<string, string> = {
@@ -23,7 +24,7 @@ const PATIENT_BADGE: Record<string, string> = {
 }
 
 export default function AssetCard({ asset }: AssetCardProps) {
-  const src = SOURCE_BADGE[asset.sourceType]
+  const src = SOURCE_BADGE[asset.sourceType] ?? SOURCE_BADGE['manual']
 
   return (
     <div className="glass glass-hover rounded-xl overflow-hidden flex flex-col group animate-fade-in">

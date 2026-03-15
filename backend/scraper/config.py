@@ -24,6 +24,31 @@ ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 CLASSIFIER_MODEL: str = os.getenv("CLASSIFIER_MODEL", "claude-opus-4-6")
 
 
+# ── Anatomy database scrapers ──────────────────────────────────────────────────
+
+# Which anatomy sources to scrape.  Remove a key to disable that source.
+# All sources are enabled by default; comment out any you want to skip.
+_ANATOMY_SOURCES_DEFAULT = ",".join([
+    "humanatlas",   # HuBMAP Human Reference Atlas 3D library
+    "nih3d",        # NIH 3D Print Exchange (human anatomy collection)
+    "medshapenet",  # MedShapeNet 2.0 (CT/MRI-derived medical shapes)
+    "bodyparts3d",  # BodyParts3D (Visible Human Project OBJ meshes)
+    "anatomytool",  # AnatomyTool.org open 3D model library
+    "sketchfab",    # Sketchfab (downloadable anatomy/medical models)
+    "embodi3d",     # Embodi3D (CT/MRI-to-STL community platform)
+    # "thingiverse", # Thingiverse — requires THINGIVERSE_TOKEN, opt-in
+])
+ANATOMY_SOURCES: list[str] = [
+    s.strip()
+    for s in os.getenv("ANATOMY_SOURCES", _ANATOMY_SOURCES_DEFAULT).split(",")
+    if s.strip()
+]
+
+# Optional Thingiverse API token (https://www.thingiverse.com/apps/create).
+# Only needed if "thingiverse" is added to ANATOMY_SOURCES.
+THINGIVERSE_TOKEN: str = os.getenv("THINGIVERSE_TOKEN", "")
+
+
 # ── GitHub ─────────────────────────────────────────────────────────────────────
 
 # Personal access token — requires public_repo scope only.

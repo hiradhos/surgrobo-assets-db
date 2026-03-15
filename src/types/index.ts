@@ -45,8 +45,45 @@ export type RLFramework =
   | 'webots'
   | 'other'
 
+// ── Anatomy-specific metadata ───────────────────────────────────────────────────
+
+/** How the anatomy model was produced */
+export type CreationMethod =
+  | 'ct-scan'
+  | 'mri'
+  | 'photogrammetry'
+  | 'synthetic'
+  | 'anatomist'
+  | 'cadaver'
+  | 'unknown'
+
+/** Pathological or normal state of the anatomy */
+export type ConditionType =
+  | 'healthy'
+  | 'tumor'
+  | 'fracture'
+  | 'defect'
+  | 'variant'
+  | 'pathologic'
+  | 'unknown'
+
+/** Biological sex of the anatomy source */
+export type Sex = 'male' | 'female' | 'unknown'
+
+/** Which anatomy database collection the record came from */
+export type SourceCollection =
+  | 'humanatlas'
+  | 'medshapenet'
+  | 'nih3d'
+  | 'bodyparts3d'
+  | 'anatomytool'
+  | 'sketchfab'
+  | 'embodi3d'
+  | 'thingiverse'
+  | 'other'
+
 // ── Asset source ───────────────────────────────────────────────────────────────
-export type SourceType = 'arxiv' | 'github' | 'dataset' | 'manual'
+export type SourceType = 'arxiv' | 'github' | 'atlas-database' | 'dataset' | 'manual'
 
 // ── Core asset record ──────────────────────────────────────────────────────────
 export interface Asset {
@@ -54,17 +91,25 @@ export interface Asset {
   name: string
   description: string
   fileTypes: FileType[]
+  // Classification (from LLM for GitHub assets; structured for atlas assets)
   patientType: PatientType
   organSystem: OrganSystem
+  bodyPart?: string           // specific organ name, e.g. "liver", "femur"
+  sex?: Sex
+  conditionType?: ConditionType
+  creationMethod?: CreationMethod
+  category?: string           // surgical-robot-model | anatomical-model | etc.
   surgicalSystem: SurgicalSystem
   rlFrameworks: RLFramework[]
+  // Source provenance
   sourceType: SourceType
+  sourceCollection?: SourceCollection | null  // non-null only for atlas-database entries
   arxivId?: string
   arxivTitle?: string
   githubRepo?: string
   githubStars?: number
   authors?: string[]
-  year: number
+  year?: number
   tags: string[]
   downloadUrl?: string
   license?: string
@@ -106,6 +151,10 @@ export interface FilterState {
   fileTypes: FileType[]
   rlFrameworks: RLFramework[]
   sourcetypes: SourceType[]
+  sourceCollections: SourceCollection[]
+  conditionTypes: ConditionType[]
+  creationMethods: CreationMethod[]
+  sexes: Sex[]
   yearRange: [number, number]
 }
 
@@ -117,6 +166,10 @@ export const DEFAULT_FILTERS: FilterState = {
   fileTypes: [],
   rlFrameworks: [],
   sourcetypes: [],
+  sourceCollections: [],
+  conditionTypes: [],
+  creationMethods: [],
+  sexes: [],
   yearRange: [2018, 2026],
 }
 
@@ -174,4 +227,42 @@ export const RL_FRAMEWORK_LABELS: Record<RLFramework, string> = {
   'sapien':    'SAPIEN',
   'webots':    'Webots',
   'other':     'Other',
+}
+
+export const CONDITION_TYPE_LABELS: Record<ConditionType, string> = {
+  'healthy':    'Healthy / Reference',
+  'tumor':      'Tumor / Cancer',
+  'fracture':   'Fracture',
+  'defect':     'Congenital Defect',
+  'variant':    'Anatomic Variant',
+  'pathologic': 'Pathologic',
+  'unknown':    'Unknown',
+}
+
+export const CREATION_METHOD_LABELS: Record<CreationMethod, string> = {
+  'ct-scan':       'CT Scan',
+  'mri':           'MRI',
+  'photogrammetry':'Photogrammetry',
+  'synthetic':     'Synthetic / Procedural',
+  'anatomist':     "Anatomist's Rendition",
+  'cadaver':       'Cadaver Dissection',
+  'unknown':       'Unknown',
+}
+
+export const SEX_LABELS: Record<Sex, string> = {
+  'male':    'Male',
+  'female':  'Female',
+  'unknown': 'Unknown',
+}
+
+export const SOURCE_COLLECTION_LABELS: Record<SourceCollection, string> = {
+  'humanatlas':  'Human Reference Atlas (HuBMAP)',
+  'medshapenet': 'MedShapeNet 2.0',
+  'nih3d':       'NIH 3D Print Exchange',
+  'bodyparts3d': 'BodyParts3D',
+  'anatomytool': 'AnatomyTool.org',
+  'sketchfab':   'Sketchfab',
+  'embodi3d':    'Embodi3D',
+  'thingiverse': 'Thingiverse',
+  'other':       'Other',
 }

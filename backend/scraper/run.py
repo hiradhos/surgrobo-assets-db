@@ -23,7 +23,8 @@ Phase 1c — Semantic Scholar: fetch papers from ICRA, IROS, MICCAI, Hamlyn, etc
 Phase 2  — GitHub link extraction: parse all paper abstracts/titles for repo URLs.
 Phase 3  — Direct GitHub search: secondary discovery pass.
 Phase 4  — Repo scanning: fetch metadata + walk git tree for simulation assets.
-Phase 5  — Persist: upsert papers, repos, assets, and audit record into SQLite.
+Phase 4  — Anatomy databases: scrape HumanAtlas, NIH 3D, MedShapeNet, etc.
+Phase 5  — Persist: upsert papers, repos, assets, anatomy records, and audit log.
 """
 from __future__ import annotations
 
@@ -47,6 +48,7 @@ from .github_client import (
     scan_repo_for_assets,
     search_github_for_surgical_repos,
 )
+from .anatomy_client import scrape_all_anatomy_sources
 from .models import Paper, ScrapeRun
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
@@ -264,6 +266,32 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
             except Exception as exc:
                 log.warning("Could not persist paper %s: %s", paper.paper_id, exc)
 
+    # ── Phase 4: Anatomy database scraping ────────────────────────────────────
+
+    log.info("Phase 4: scraping anatomy databases …")
+    with db._connect() as conn:
+        known_anatomy_ids = db.get_known_anatomy_ids(conn)
+
+    anatomy_records = scrape_all_anatomy_sources(known_anatomy_ids)
+
+    anatomy_added = anatomy_updated = 0
+    with db._connect() as conn:
+        for rec in anatomy_records:
+            try:
+                is_new = db.upsert_anatomy_record(rec, conn)
+                if is_new:
+                    anatomy_added += 1
+                else:
+                    anatomy_updated += 1
+            except Exception as exc:
+                log.warning("Could not persist anatomy record %s: %s", rec.record_id, exc)
+
+    log.info(
+        "Phase 4 complete: +%d new anatomy records, ~%d updated",
+        anatomy_added,
+        anatomy_updated,
+    )
+
     # ── Finalise audit record ──────────────────────────────────────────────────
 
     run.finished_at = datetime.now(timezone.utc)
@@ -272,9 +300,9 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     with db._connect() as conn:
         db.finish_run(run_id, run, conn)
 
-    # ── Phase 6: Export to frontend JSON ──────────────────────────────────────
+    # ── Phase 5: Export to frontend JSON ──────────────────────────────────────
 
-    log.info("Phase 6: exporting assets to public/db-assets.json …")
+    log.info("Phase 5: exporting assets to public/db-assets.json …")
     export_assets()
 
     log.info("=" * 60)
