@@ -5,6 +5,9 @@ import FileTypeBadge from './FileTypeBadge'
 
 interface AssetCardProps {
   asset: Asset
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
@@ -23,11 +26,22 @@ const PATIENT_BADGE: Record<string, string> = {
   generic:   'text-gray-400',
 }
 
-export default function AssetCard({ asset }: AssetCardProps) {
+export default function AssetCard({ asset, selectable, selected, onToggleSelect }: AssetCardProps) {
   const src = SOURCE_BADGE[asset.sourceType] ?? SOURCE_BADGE['manual']
 
   return (
-    <div className="glass glass-hover rounded-xl overflow-hidden flex flex-col group animate-fade-in">
+    <div className="glass glass-hover rounded-xl overflow-hidden flex flex-col group animate-fade-in relative">
+      {selectable && (
+        <label className="absolute right-3 top-3 z-10 flex items-center gap-2 text-[11px] text-gray-300 bg-black/40 border border-white/10 rounded px-2 py-1">
+          <input
+            type="checkbox"
+            className="h-3 w-3 accent-cyan-400"
+            checked={!!selected}
+            onChange={() => asset.sourceKey && onToggleSelect?.(asset.sourceKey)}
+          />
+          Select
+        </label>
+      )}
 
       {/* Color stripe + avatar */}
       <div
@@ -38,6 +52,26 @@ export default function AssetCard({ asset }: AssetCardProps) {
       <div className="p-4 flex flex-col gap-3 flex-1">
 
         {/* Top row */}
+        <div
+          className="relative overflow-hidden rounded-lg border border-white/[0.06]"
+          style={{
+            background: `linear-gradient(135deg, ${asset.thumbnailColor ?? '#06b6d4'}33, transparent)`,
+          }}
+        >
+          {asset.previewUrl ? (
+            <img
+              src={asset.previewUrl}
+              alt={asset.name}
+              className="h-36 w-full object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="h-36 w-full flex items-center justify-center text-xs uppercase tracking-wider text-gray-400">
+              {asset.fileTypes.slice(0, 2).join(' / ') || 'Preview'}
+            </div>
+          )}
+        </div>
         <div className="flex items-start justify-between gap-2">
           <div
             className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold"
@@ -159,6 +193,8 @@ export default function AssetCard({ asset }: AssetCardProps) {
             {asset.downloadUrl && (
               <a
                 href={asset.downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1 rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-[11px] font-medium text-cyan-300 hover:bg-cyan-500/20 transition-all"
               >
                 <Download size={11} />

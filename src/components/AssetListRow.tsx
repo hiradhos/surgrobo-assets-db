@@ -5,6 +5,9 @@ import FileTypeBadge from './FileTypeBadge'
 
 interface AssetListRowProps {
   asset: Asset
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 const PATIENT_BADGE: Record<string, string> = {
@@ -15,21 +18,44 @@ const PATIENT_BADGE: Record<string, string> = {
   generic:   'text-gray-500',
 }
 
-export default function AssetListRow({ asset }: AssetListRowProps) {
+export default function AssetListRow({ asset, selectable, selected, onToggleSelect }: AssetListRowProps) {
   return (
     <div className="group flex items-start gap-4 py-3.5 px-2 rounded-lg hover:bg-white/[0.02] transition-colors">
 
       {/* Color dot + avatar */}
-      <div
-        className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-bold mt-0.5"
-        style={{
-          background: `${asset.thumbnailColor ?? '#06b6d4'}22`,
-          color: asset.thumbnailColor ?? '#06b6d4',
-          border: `1px solid ${asset.thumbnailColor ?? '#06b6d4'}33`,
-        }}
-      >
-        {asset.fileTypes[0]?.[0] ?? '?'}
+      <div className="flex items-center gap-2">
+        {selectable && (
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 accent-cyan-400"
+            checked={!!selected}
+            onChange={() => asset.sourceKey && onToggleSelect?.(asset.sourceKey)}
+          />
+        )}
       </div>
+
+      {asset.previewUrl ? (
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.02]">
+          <img
+            src={asset.previewUrl}
+            alt={asset.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      ) : (
+        <div
+          className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-bold mt-0.5"
+          style={{
+            background: `${asset.thumbnailColor ?? '#06b6d4'}22`,
+            color: asset.thumbnailColor ?? '#06b6d4',
+            border: `1px solid ${asset.thumbnailColor ?? '#06b6d4'}33`,
+          }}
+        >
+          {asset.fileTypes[0]?.[0] ?? '?'}
+        </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
@@ -92,6 +118,8 @@ export default function AssetListRow({ asset }: AssetListRowProps) {
         {asset.downloadUrl && (
           <a
             href={asset.downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-1 rounded bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[11px] text-cyan-400 hover:bg-cyan-500/20 transition-all"
           >
             <Download size={11} />

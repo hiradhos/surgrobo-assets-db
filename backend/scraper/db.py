@@ -127,6 +127,37 @@ CREATE INDEX IF NOT EXISTS idx_anatomy_source     ON anatomy_records(source_coll
 CREATE INDEX IF NOT EXISTS idx_anatomy_organ      ON anatomy_records(organ_system);
 CREATE INDEX IF NOT EXISTS idx_anatomy_condition  ON anatomy_records(condition_type);
 CREATE INDEX IF NOT EXISTS idx_anatomy_body_part  ON anatomy_records(body_part);
+
+-- LLM vetting decisions (applies to GitHub repo assets and anatomy records)
+CREATE TABLE IF NOT EXISTS asset_vetting (
+    source_key              TEXT PRIMARY KEY,  -- "github:<owner/repo>" | "anatomy:<record_id>"
+    source_type             TEXT NOT NULL,     -- github | anatomy
+    decision                TEXT NOT NULL,     -- keep | reject
+    confidence              REAL NOT NULL,
+    reason                  TEXT NOT NULL,
+    corrected_name          TEXT,
+    corrected_body_part     TEXT,
+    corrected_organ_system  TEXT,
+    corrected_age_group     TEXT,
+    corrected_sex           TEXT,
+    corrected_condition     TEXT,
+    corrected_creation      TEXT,
+    corrected_source        TEXT,
+    corrected_tags          TEXT NOT NULL DEFAULT '[]',
+    updated_at              TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_vetting_source_type ON asset_vetting(source_type);
+
+-- Banlist to prevent re-ingest of rejected items
+CREATE TABLE IF NOT EXISTS banned_sources (
+    source_key   TEXT PRIMARY KEY,  -- "github:<owner/repo>" | "anatomy:<record_id>"
+    source_type  TEXT NOT NULL,     -- github | anatomy
+    reason       TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_banned_source_type ON banned_sources(source_type);
 """
 
 
@@ -427,3 +458,104 @@ def get_known_anatomy_ids(conn: sqlite3.Connection) -> set[str]:
 
 def get_anatomy_records(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM anatomy_records ORDER BY source_collection, name").fetchall()
+
+
+# ── Vetting CRUD ───────────────────────────────────────────────────────────────
+
+def upsert_vetting(
+    source_key: str,
+    source_type: str,
+    decision: str,
+    confidence: float,
+    reason: str,
+    corrected: dict,
+    conn: sqlite3.Connection,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO asset_vetting
+            (source_key, source_type, decision, confidence, reason,
+             corrected_name, corrected_body_part, corrected_organ_system,
+             corrected_age_group, corrected_sex, corrected_condition,
+             corrected_creation, corrected_source, corrected_tags, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_key) DO UPDATE SET
+            decision               = excluded.decision,
+            confidence             = excluded.confidence,
+            reason                 = excluded.reason,
+            corrected_name         = excluded.corrected_name,
+            corrected_body_part    = excluded.corrected_body_part,
+            corrected_organ_system = excluded.corrected_organ_system,
+            corrected_age_group    = excluded.corrected_age_group,
+            corrected_sex          = excluded.corrected_sex,
+            corrected_condition    = excluded.corrected_condition,
+            corrected_creation     = excluded.corrected_creation,
+            corrected_source       = excluded.corrected_source,
+            corrected_tags         = excluded.corrected_tags,
+            updated_at             = excluded.updated_at
+        """,
+        (
+            source_key,
+            source_type,
+            decision,
+            confidence,
+            reason,
+            corrected.get("name"),
+            corrected.get("body_part"),
+            corrected.get("organ_system"),
+            corrected.get("age_group"),
+            corrected.get("sex"),
+            corrected.get("condition_type"),
+            corrected.get("creation_method"),
+            corrected.get("source_collection"),
+            json.dumps(corrected.get("tags") or []),
+            _now(),
+        ),
+    )
+
+
+def get_vetting_map(conn: sqlite3.Connection) -> dict[str, sqlite3.Row]:
+    rows = conn.execute("SELECT * FROM asset_vetting").fetchall()
+    return {r["source_key"]: r for r in rows}
+
+
+def ban_source(source_key: str, source_type: str, reason: str, conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        INSERT INTO banned_sources (source_key, source_type, reason, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(source_key) DO UPDATE SET
+            reason = excluded.reason,
+            updated_at = excluded.updated_at
+        """,
+        (source_key, source_type, reason[:400], _now()),
+    )
+
+
+def get_banned_sources(conn: sqlite3.Connection) -> dict[str, sqlite3.Row]:
+    rows = conn.execute("SELECT * FROM banned_sources").fetchall()
+    return {r["source_key"]: r for r in rows}
+
+
+def get_banned_anatomy_ids(conn: sqlite3.Connection) -> set[str]:
+    rows = conn.execute(
+        "SELECT source_key FROM banned_sources WHERE source_type = 'anatomy'"
+    ).fetchall()
+    ids: set[str] = set()
+    for r in rows:
+        key = r["source_key"]
+        if key.startswith("anatomy:"):
+            ids.add(key.split("anatomy:", 1)[1])
+    return ids
+
+
+def get_banned_repo_names(conn: sqlite3.Connection) -> set[str]:
+    rows = conn.execute(
+        "SELECT source_key FROM banned_sources WHERE source_type = 'github'"
+    ).fetchall()
+    names: set[str] = set()
+    for r in rows:
+        key = r["source_key"]
+        if key.startswith("github:"):
+            names.add(key.split("github:", 1)[1].lower())
+    return names

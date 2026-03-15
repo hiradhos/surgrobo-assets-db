@@ -78,6 +78,27 @@ def _github_get(session: requests.Session, path: str) -> dict | list | None:
         return None
 
 
+def _get_json(session: requests.Session, url: str, **kwargs) -> dict | list | None:
+    r = _get(session, url, **kwargs)
+    if r is None:
+        return None
+    try:
+        return r.json()
+    except Exception:
+        return None
+
+
+def _clean_html(text: str, max_len: int = 500) -> str:
+    cleaned = re.sub(r"<[^>]+>", " ", text or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:max_len]
+
+
+def _extract_download_links(html: str, exts: tuple[str, ...]) -> list[str]:
+    pattern = r'href="([^"]+\.(?:' + "|".join(exts) + r'))"'
+    return re.findall(pattern, html, re.IGNORECASE)
+
+
 # Maps common body-part keywords → canonical organ_system values used by the frontend.
 _ORGAN_SYSTEM_MAP: dict[str, str] = {
     # cardiac
@@ -204,125 +225,83 @@ def scrape_humanatlas(session: requests.Session, known_ids: set[str]) -> list[An
     """
     Fetch 3D organ reference models from the HuBMAP CCF 3D Reference Library.
 
-    Data source: the ccf-3d-reference-library GitHub repo + HRA CDN.
+    Data source: the ccf-releases GitHub repo (preferred) + fallback to the
+    older ccf-3d-reference-library repo if needed.
     Models include male/female Visible Human organ meshes in GLTF/OBJ format.
     """
     records: list[AnatomyRecord] = []
 
-    # Try the GitHub releases API first — stable and machine-readable
-    releases = _github_get(session, "/repos/hubmapconsortium/ccf-3d-reference-library/releases")
-    if not releases or not isinstance(releases, list):
-        log.warning("humanatlas: could not fetch GitHub releases")
-        return records
+    preferred_repo = "hubmapconsortium/ccf-releases"
+    fallback_repo = "hubmapconsortium/ccf-3d-reference-library"
+    version_year = {"v1.2": 2022, "v1.1": 2021, "v1.0": 2021}
 
-    latest = releases[0] if releases else {}
-    release_tag = latest.get("tag_name", "unknown")
-    release_year = None
-    if latest.get("published_at"):
-        try:
-            release_year = int(latest["published_at"][:4])
-        except Exception:
-            pass
+    def scan_repo(repo: str) -> list[AnatomyRecord]:
+        branch = "main"
+        tree = _github_get(session, f"/repos/{repo}/git/trees/{branch}?recursive=1")
+        if not tree or not isinstance(tree, dict):
+            branch = "master"
+            tree = _github_get(session, f"/repos/{repo}/git/trees/{branch}?recursive=1")
+        if not tree or not isinstance(tree, dict):
+            return []
 
-    assets_api = latest.get("assets", [])
-    log.info("humanatlas: release %s has %d downloadable assets", release_tag, len(assets_api))
-
-    for asset in assets_api:
-        asset_name = asset.get("name", "")
-        download_url = asset.get("browser_download_url", "")
-        if not download_url:
-            continue
-
-        # Infer file type from extension
-        ext = asset_name.rsplit(".", 1)[-1].upper() if "." in asset_name else ""
-        if ext not in {"OBJ", "GLB", "GLTF", "STL", "PLY"}:
-            continue
-
-        # Strip extension for display name; e.g. "VH_F_Liver.obj" → "VH_F_Liver"
-        base = asset_name.rsplit(".", 1)[0]
-        record_id = f"humanatlas:{base}"
-        if record_id in known_ids:
-            continue
-
-        # Visible Human uses naming like VH_F_Liver, VH_M_Heart
-        # Also HRA uses <organ>.<ext> directly
-        sex = _infer_sex(base)
-        body_part = _infer_body_part(base.replace("_", " "))
-        organ_system = _infer_organ_system(base.replace("_", " "))
-        display_name = (
-            base.replace("VH_F_", "")
-                .replace("VH_M_", "")
-                .replace("_", " ")
-                .strip()
+        paths = [n.get("path", "") for n in tree.get("tree", []) if isinstance(n, dict)]
+        versions = sorted(
+            {p.split("/")[0] for p in paths if p.startswith("v")},
+            reverse=True,
         )
+        preferred_versions = [v for v in ("v1.2", "v1.1", "v1.0") if v in versions]
+        use_versions = preferred_versions or (versions[:1] if versions else [""])
 
-        records.append(AnatomyRecord(
-            record_id=record_id,
-            source_collection="humanatlas",
-            name=f"HRA: {display_name}" if display_name else f"HRA: {base}",
-            description=(
-                f"3D reference organ model from the HuBMAP Human Reference Atlas "
-                f"(release {release_tag}). Visible Human Project source data."
-            ),
-            body_part=body_part,
-            organ_system=organ_system,
-            age_group="adult",
-            sex=sex,
-            condition_type="healthy",
-            creation_method="ct-scan",
-            file_types=[ext if ext != "GLB" else "GLTF"],
-            download_url=download_url,
-            license="CC BY 4.0",
-            tags=["hra", "visible-human", "reference-atlas", "hubmap"],
-            year=release_year,
-        ))
+        found: list[AnatomyRecord] = []
+        for path in paths:
+            if "/models/" not in path:
+                continue
+            if use_versions[0] and not path.startswith(f"{use_versions[0]}/"):
+                continue
+            filename = path.split("/")[-1]
+            ext = filename.rsplit(".", 1)[-1].upper() if "." in filename else ""
+            if ext not in {"OBJ", "GLB", "GLTF", "STL", "PLY", "FBX"}:
+                continue
+            base = filename.rsplit(".", 1)[0]
+            record_id = f"humanatlas:{base}"
+            if record_id in known_ids:
+                continue
 
-    # If no packaged release assets, fall back to scanning the repo tree
+            sex = _infer_sex(base)
+            body_part = _infer_body_part(base.replace("_", " "))
+            organ_system = _infer_organ_system(base.replace("_", " "))
+            display_name = (
+                base.replace("VH_F_", "").replace("VH_M_", "").replace("_", " ").strip()
+            )
+            version = path.split("/")[0] if path.startswith("v") else ""
+            download_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
+
+            found.append(AnatomyRecord(
+                record_id=record_id,
+                source_collection="humanatlas",
+                name=f"HRA: {display_name}" if display_name else f"HRA: {base}",
+                description=(
+                    "3D reference organ model from the HuBMAP Human Reference Atlas."
+                    + (f" Release {version}." if version else "")
+                ),
+                body_part=body_part,
+                organ_system=organ_system,
+                age_group="adult",
+                sex=sex,
+                condition_type="healthy",
+                creation_method="ct-scan",
+                file_types=[ext if ext != "GLB" else "GLTF"],
+                download_url=download_url,
+                license="CC BY 4.0",
+                tags=["hra", "visible-human", "reference-atlas", "hubmap"],
+                year=version_year.get(version),
+            ))
+        return found
+
+    records = scan_repo(preferred_repo)
     if not records:
-        log.info("humanatlas: no release assets found, scanning repo tree …")
-        tree_data = _github_get(
-            session,
-            "/repos/hubmapconsortium/ccf-3d-reference-library/git/trees/main?recursive=1",
-        )
-        if tree_data and isinstance(tree_data, dict):
-            for node in tree_data.get("tree", []):
-                path = node.get("path", "")
-                ext = path.rsplit(".", 1)[-1].upper() if "." in path else ""
-                if ext not in {"OBJ", "GLB", "GLTF", "STL"}:
-                    continue
-                filename = path.split("/")[-1]
-                base = filename.rsplit(".", 1)[0]
-                record_id = f"humanatlas:{base}"
-                if record_id in known_ids:
-                    continue
-                sex = _infer_sex(base)
-                body_part = _infer_body_part(base.replace("_", " "))
-                organ_system = _infer_organ_system(base.replace("_", " "))
-                display_name = (
-                    base.replace("VH_F_", "").replace("VH_M_", "").replace("_", " ").strip()
-                )
-                download_url = (
-                    f"https://raw.githubusercontent.com/hubmapconsortium/"
-                    f"ccf-3d-reference-library/main/{path}"
-                )
-                records.append(AnatomyRecord(
-                    record_id=record_id,
-                    source_collection="humanatlas",
-                    name=f"HRA: {display_name}" if display_name else f"HRA: {base}",
-                    description=(
-                        "3D reference organ model from the HuBMAP Human Reference Atlas."
-                    ),
-                    body_part=body_part,
-                    organ_system=organ_system,
-                    age_group="adult",
-                    sex=sex,
-                    condition_type="healthy",
-                    creation_method="ct-scan",
-                    file_types=[ext if ext != "GLB" else "GLTF"],
-                    download_url=download_url,
-                    license="CC BY 4.0",
-                    tags=["hra", "visible-human", "reference-atlas", "hubmap"],
-                ))
+        log.warning("humanatlas: could not scan %s — falling back", preferred_repo)
+        records = scan_repo(fallback_repo)
 
     log.info("humanatlas: %d new records", len(records))
     return records
@@ -335,52 +314,21 @@ def scrape_nih3d(session: requests.Session, known_ids: set[str]) -> list[Anatomy
     Scrape the NIH 3D Print Exchange for human anatomy models.
 
     The NIH 3D Print Exchange (3d.nih.gov) hosts thousands of biomedical 3D models.
-    We query their search API filtered by the 'Human Anatomy' and 'HRA' categories.
+    The public API has changed several times; this scraper tries a set of known
+    endpoints and also parses the discover HTML as a last resort.
     """
     records: list[AnatomyRecord] = []
-
-    # NIH 3D has a JSON search endpoint used by their frontend
-    search_queries = [
-        {"category": "Human Anatomy", "limit": 100},
-        {"category": "Human Anatomy", "limit": 100, "offset": 100},
-        {"collection": "hra", "limit": 50},
-    ]
-
     seen_ids: set[str] = set()
 
-    for params in search_queries:
-        # Try the documented-ish API endpoint pattern
-        url = "https://3d.nih.gov/api/entries/?" + urlencode(params)
-        r = _get(session, url)
-        if r is None:
-            # Try alternate endpoint format
-            url2 = "https://3d.nih.gov/entries?" + urlencode({**params, "format": "json"})
-            r = _get(session, url2)
-        if r is None:
-            continue
-
-        try:
-            data = r.json()
-        except Exception:
-            continue
-
-        # Handle both {"results": [...]} and plain list responses
-        if isinstance(data, dict):
-            items = data.get("results", data.get("entries", data.get("models", [])))
-        elif isinstance(data, list):
-            items = data
-        else:
-            continue
-
+    def _ingest_items(items: list[dict]) -> None:
         for item in items:
-            if not isinstance(item, dict):
-                continue
-            uid = item.get("id") or item.get("uid") or item.get("accession_id", "")
+            uid = item.get("id") or item.get("uid") or item.get("accession_id", "") or item.get("uuid", "")
             if not uid:
                 continue
-            if str(uid) in seen_ids:
+            uid = str(uid)
+            if uid in seen_ids:
                 continue
-            seen_ids.add(str(uid))
+            seen_ids.add(uid)
 
             record_id = f"nih3d:{uid}"
             if record_id in known_ids:
@@ -391,12 +339,15 @@ def scrape_nih3d(session: requests.Session, known_ids: set[str]) -> list[Anatomy
             download_url = (
                 item.get("download_url")
                 or item.get("stl_file")
+                or item.get("url")
                 or f"https://3d.nih.gov/entries/{uid}"
             )
             preview_url = item.get("thumbnail") or item.get("preview_image", "")
             license_str = item.get("license", "")
-            tags_raw = item.get("tags") or item.get("keywords", [])
-            tags = tags_raw if isinstance(tags_raw, list) else [t.strip() for t in str(tags_raw).split(",") if t.strip()]
+            tags_raw = item.get("tags") or item.get("keywords", []) or []
+            tags = tags_raw if isinstance(tags_raw, list) else [
+                t.strip() for t in str(tags_raw).split(",") if t.strip()
+            ]
 
             combined = f"{name} {description} {' '.join(tags)}"
             records.append(AnatomyRecord(
@@ -417,7 +368,53 @@ def scrape_nih3d(session: requests.Session, known_ids: set[str]) -> list[Anatomy
                 tags=tags[:10],
             ))
 
-        time.sleep(1)
+    endpoints = [
+        ("https://3d.nih.gov/api/v1/discover", {"collection": "40,42,41", "page": 1}),
+        ("https://3d.nih.gov/api/v1/entries", {"collection": "40,42,41", "page": 1}),
+        ("https://3d.nih.gov/api/entries", {"collection": "40,42,41", "page": 1}),
+        ("https://3d.nih.gov/api/v1/search", {"q": "anatomy", "page": 1}),
+        ("https://3d.nih.gov/api/entries", {"category": "Human Anatomy", "limit": 100}),
+    ]
+
+    for base_url, params in endpoints:
+        for page in range(1, 6):
+            params["page"] = page
+            data = _get_json(session, base_url, params=params)
+            if data is None:
+                break
+            if isinstance(data, list):
+                items = [i for i in data if isinstance(i, dict)]
+            elif isinstance(data, dict):
+                items = data.get("results") or data.get("entries") or data.get("items") or []
+                items = [i for i in items if isinstance(i, dict)]
+            else:
+                items = []
+            if not items:
+                break
+            _ingest_items(items)
+            time.sleep(1)
+        if records:
+            break
+
+    # HTML fallback: parse discover page if API is blocked
+    if not records:
+        discover_url = "https://3d.nih.gov/discover?collection=40,42,41"
+        r = _get(session, discover_url)
+        if r is not None:
+            html = r.text
+            # Try to extract embedded JSON blobs with entry metadata
+            json_candidates = re.findall(r'(\{.*?\})', html, re.DOTALL)
+            for blob in json_candidates:
+                if '"title"' not in blob or '"id"' not in blob:
+                    continue
+                try:
+                    data = json.loads(blob)
+                except Exception:
+                    continue
+                items = data.get("results") or data.get("entries") or data.get("items") or []
+                if isinstance(items, list) and items:
+                    _ingest_items([i for i in items if isinstance(i, dict)])
+                    break
 
     log.info("nih3d: %d new records", len(records))
     return records
@@ -588,9 +585,15 @@ def scrape_anatomytool(session: requests.Session, known_ids: set[str]) -> list[A
     """
     records: list[AnatomyRecord] = []
 
-    # Try to fetch their model listing; they use a WordPress-style pagination
-    base_url = "https://anatomytool.org/open3dmodel"
-    pages_to_try = [base_url] + [f"{base_url}?page={i}" for i in range(1, 6)]
+    # Primary model listings live under the "learn" and "create" sections.
+    base_urls = [
+        "https://anatomytool.org/open3dmodel",
+        "https://anatomytool.org/open3dmodel-learn",
+        "https://anatomytool.org/open3dmodel-create",
+    ]
+    pages_to_try = []
+    for base_url in base_urls:
+        pages_to_try.extend([base_url] + [f"{base_url}?page={i}" for i in range(1, 6)])
 
     seen_urls: set[str] = set()
 
@@ -603,8 +606,37 @@ def scrape_anatomytool(session: requests.Session, known_ids: set[str]) -> list[A
 
         # Extract model card blocks.  AnatomyTool uses href="/node/<id>" patterns.
         node_links = re.findall(r'href="(/node/\d+)"', html)
-        if not node_links and page_url != base_url:
-            break  # no more pages
+        if not node_links:
+            # Also capture direct asset links on the create/learn pages
+            dl_links = _extract_download_links(
+                html,
+                ("zip", "glb", "gltf", "obj", "stl", "fbx", "dae"),
+            )
+            for link in dl_links:
+                full = urljoin("https://anatomytool.org", link)
+                base = full.split("/")[-1].rsplit(".", 1)[0]
+                record_id = f"anatomytool:{base}"
+                if record_id in known_ids:
+                    continue
+                name = base.replace("-", " ").replace("_", " ").strip()
+                combined = name
+                ext = link.rsplit(".", 1)[-1].upper()
+                records.append(AnatomyRecord(
+                    record_id=record_id,
+                    source_collection="anatomytool",
+                    name=name or f"AnatomyTool model {base}",
+                    description="AnatomyTool open 3D model download.",
+                    body_part=_infer_body_part(combined),
+                    organ_system=_infer_organ_system(combined),
+                    age_group=_infer_age_group(combined),
+                    sex=_infer_sex(combined),
+                    condition_type=_infer_condition(combined),
+                    creation_method=_infer_creation_method(combined),
+                    file_types=[ext],
+                    download_url=full,
+                    tags=["anatomytool", "anatomy"],
+                ))
+            continue
 
         for rel_link in set(node_links):
             full_url = f"https://anatomytool.org{rel_link}"
@@ -633,15 +665,12 @@ def scrape_anatomytool(session: requests.Session, known_ids: set[str]) -> list[A
 
             # Extract description  (first paragraph after the header)
             desc_m = re.search(r'<div[^>]*class="[^"]*field-body[^"]*"[^>]*>(.*?)</div>', detail_html, re.DOTALL)
-            description = ""
-            if desc_m:
-                description = re.sub(r"<[^>]+>", " ", desc_m.group(1)).strip()[:500]
+            description = _clean_html(desc_m.group(1) if desc_m else "")
 
             # Find download links for 3D files
-            dl_links = re.findall(
-                r'href="([^"]+\.(?:obj|stl|ply|gltf|glb|fbx|dae))"',
+            dl_links = _extract_download_links(
                 detail_html,
-                re.IGNORECASE,
+                ("obj", "stl", "ply", "gltf", "glb", "fbx", "dae", "zip"),
             )
             download_url = urljoin("https://anatomytool.org", dl_links[0]) if dl_links else full_url
             file_exts = list({l.rsplit(".", 1)[-1].upper() for l in dl_links}) if dl_links else ["OBJ"]
@@ -783,7 +812,7 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
     """
     records: list[AnatomyRecord] = []
 
-    # Embodi3D uses an IPS Community Suite API
+    # Embodi3D uses an IPS Community Suite API, but it may be blocked (403).
     api_base = "https://www.embodi3d.com/api/core/search"
     params = {
         "type": "core_file",
@@ -792,14 +821,10 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
         "page": 1,
     }
 
-    for page in range(1, 6):
+    for page in range(1, 4):
         params["page"] = page
-        r = _get(session, api_base, params=params)
-        if r is None:
-            break
-        try:
-            data = r.json()
-        except Exception:
+        data = _get_json(session, api_base, params=params)
+        if not isinstance(data, dict):
             break
 
         results = data.get("results", [])
@@ -815,7 +840,7 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
                 continue
 
             name = item.get("title", f"Embodi3D model {uid}")
-            description = re.sub(r"<[^>]+>", " ", item.get("content", ""))[:500]
+            description = _clean_html(item.get("content", ""))
             url = item.get("url", f"https://www.embodi3d.com/files/file/{uid}")
             tags_raw = [t.get("name", "") for t in item.get("tags", []) if isinstance(t, dict)]
             combined = f"{name} {description} {' '.join(tags_raw)}"
@@ -837,6 +862,70 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
             ))
 
         time.sleep(1.5)
+
+    # HTML fallback if API is blocked
+    if not records:
+        list_pages = [
+            "https://www.embodi3d.com/files/",
+            "https://www.embodi3d.com/files/category/0-all-free-medical-3d-printing-files/",
+        ]
+        file_links: list[str] = []
+        for page_url in list_pages:
+            r = _get(session, page_url)
+            if r is None:
+                continue
+            html = r.text
+            links = re.findall(r'href="(/files/file/\d+[^"]*)"', html)
+            for rel in links:
+                full = urljoin("https://www.embodi3d.com", rel)
+                if full not in file_links:
+                    file_links.append(full)
+            time.sleep(1)
+
+        for full_url in file_links[:60]:
+            r = _get(session, full_url)
+            if r is None:
+                continue
+            html = r.text
+
+            uid_match = re.search(r"/files/file/(\d+)", full_url)
+            uid = uid_match.group(1) if uid_match else ""
+            if not uid:
+                continue
+            record_id = f"embodi3d:{uid}"
+            if record_id in known_ids:
+                continue
+
+            title_m = re.search(r"<h1[^>]*>([^<]+)</h1>", html) or re.search(r"<title>([^<|]+)", html)
+            name = title_m.group(1).strip() if title_m else f"Embodi3D model {uid}"
+
+            desc_m = re.search(r'class="[^"]*ipsType_richText[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
+            description = _clean_html(desc_m.group(1) if desc_m else "")
+
+            dl_links = _extract_download_links(html, ("stl", "obj", "zip", "gltf", "glb", "ply"))
+            download_url = urljoin("https://www.embodi3d.com", dl_links[0]) if dl_links else full_url
+            file_exts = list({l.rsplit(".", 1)[-1].upper() for l in dl_links}) if dl_links else ["STL"]
+
+            tags = re.findall(r'href="[^"]*/tags/([^"/]+)"', html, re.IGNORECASE)
+            tags = [t.replace("-", " ") for t in tags][:8]
+
+            combined = f"{name} {description} {' '.join(tags)}"
+            records.append(AnatomyRecord(
+                record_id=record_id,
+                source_collection="embodi3d",
+                name=name,
+                description=description,
+                body_part=_infer_body_part(combined),
+                organ_system=_infer_organ_system(combined),
+                age_group=_infer_age_group(combined),
+                sex=_infer_sex(combined),
+                condition_type=_infer_condition(combined),
+                creation_method="ct-scan",
+                file_types=file_exts[:4],
+                download_url=download_url,
+                tags=tags,
+            ))
+            time.sleep(0.8)
 
     log.info("embodi3d: %d new records", len(records))
     return records

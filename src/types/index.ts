@@ -112,6 +112,8 @@ export interface Asset {
   year?: number
   tags: string[]
   downloadUrl?: string
+  previewUrl?: string
+  sourceKey?: string
   license?: string
   addedAt: string
   thumbnailColor?: string  // used for placeholder avatar color

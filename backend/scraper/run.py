@@ -25,6 +25,8 @@ Phase 3  — Direct GitHub search: secondary discovery pass.
 Phase 4  — Repo scanning: fetch metadata + walk git tree for simulation assets.
 Phase 4  — Anatomy databases: scrape HumanAtlas, NIH 3D, MedShapeNet, etc.
 Phase 5  — Persist: upsert papers, repos, assets, anatomy records, and audit log.
+Phase 6  — Local LLM vetting: filter non-anatomical assets and correct metadata.
+Phase 7  — Export: write public/db-assets.json for the frontend.
 """
 from __future__ import annotations
 
@@ -50,6 +52,7 @@ from .github_client import (
 )
 from .anatomy_client import scrape_all_anatomy_sources
 from .models import Paper, ScrapeRun
+from .vetter import vet_assets
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
 
@@ -78,6 +81,7 @@ def _collect_papers_from_source(
     papers_this_run: list[Paper],
     queued_repos: dict[str, tuple[str, str]],
     repo_source_paper: dict[str, str],
+    banned_repos: set[str],
     run: ScrapeRun,
 ) -> None:
     """
@@ -103,6 +107,8 @@ def _collect_papers_from_source(
 
         for owner, name in found_pairs:
             full_name = f"{owner}/{name}".lower()
+            if full_name in banned_repos:
+                continue
             if full_name not in queued_repos:
                 queued_repos[full_name] = (owner, name)
                 repo_source_paper[full_name] = paper.paper_id
@@ -129,6 +135,7 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
         known_arxiv_ids = db.get_known_arxiv_ids(conn)
         known_pubmed_ids = db.get_known_pubmed_ids(conn)
         known_repos     = db.get_known_repo_names(conn)
+        banned_repos    = db.get_banned_repo_names(conn)
 
     log.info(
         "Known papers: %d (arXiv: %d, PubMed: %d)  |  Known repos: %d",
@@ -137,6 +144,8 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
         len(known_pubmed_ids),
         len(known_repos),
     )
+    if banned_repos:
+        log.info("Banned repos: %d", len(banned_repos))
 
     # Track repos queued for scanning to avoid duplicate work within this run.
     # full_name (lower) -> (owner, name)
@@ -159,6 +168,7 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
         papers_this_run,
         queued_repos,
         repo_source_paper,
+        banned_repos,
         run,
     )
 
@@ -174,6 +184,7 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
         papers_this_run,
         queued_repos,
         repo_source_paper,
+        banned_repos,
         run,
     )
 
@@ -190,6 +201,7 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
         papers_this_run,
         queued_repos,
         repo_source_paper,
+        banned_repos,
         run,
     )
 
@@ -206,6 +218,8 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     added_direct = 0
     for repo in direct_repos:
         fn = repo.full_name.lower()
+        if fn in banned_repos:
+            continue
         if fn not in queued_repos:
             queued_repos[fn] = (repo.owner, repo.name)
             added_direct += 1
@@ -217,6 +231,8 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     log.info("Phase 3: scanning %d repos …", len(queued_repos))
 
     for full_name_lower, (owner, name) in queued_repos.items():
+        if full_name_lower in banned_repos:
+            continue
         log.info("  Scanning %s/%s …", owner, name)
 
         repo = fetch_repo_metadata(owner, name)
@@ -271,8 +287,9 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     log.info("Phase 4: scraping anatomy databases …")
     with db._connect() as conn:
         known_anatomy_ids = db.get_known_anatomy_ids(conn)
+        banned_anatomy_ids = db.get_banned_anatomy_ids(conn)
 
-    anatomy_records = scrape_all_anatomy_sources(known_anatomy_ids)
+    anatomy_records = scrape_all_anatomy_sources(known_anatomy_ids | banned_anatomy_ids)
 
     anatomy_added = anatomy_updated = 0
     with db._connect() as conn:
@@ -300,9 +317,17 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     with db._connect() as conn:
         db.finish_run(run_id, run, conn)
 
+    # ── Phase 5: Local LLM vetting ────────────────────────────────────────────
+
+    log.info("Phase 5: local LLM vetting …")
+    try:
+        vet_assets()
+    except Exception as exc:
+        log.warning("Vetting failed: %s", exc)
+
     # ── Phase 5: Export to frontend JSON ──────────────────────────────────────
 
-    log.info("Phase 5: exporting assets to public/db-assets.json …")
+    log.info("Phase 6: exporting assets to public/db-assets.json …")
     export_assets()
 
     log.info("=" * 60)

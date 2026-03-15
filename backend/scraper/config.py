@@ -208,6 +208,41 @@ DB_PATH: Path = Path(os.getenv(
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
+# ── Local LLM vetting ─────────────────────────────────────────────────────────
+
+# Enable/disable local LLM vetting. Set to "0" to disable.
+VETTING_ENABLED: bool = os.getenv("VETTING_ENABLED", "1").lower() not in ("0", "false", "no")
+
+# Maximum number of assets to vet per run (to keep runtimes bounded).
+VETTING_MAX_ITEMS: int = int(os.getenv("VETTING_MAX_ITEMS", "200"))
+
+# Re-run vetting even if a record already has a decision.
+VETTING_FORCE: bool = os.getenv("VETTING_FORCE", "0").lower() in ("1", "true", "yes")
+
+# Delete rejected items from the database after vetting.
+VETTING_CLEANUP: bool = os.getenv("VETTING_CLEANUP", "0").lower() in ("1", "true", "yes")
+
+# Local LLM backend: "ollama" (HTTP) or "command".
+LOCAL_LLM_BACKEND: str = os.getenv("LOCAL_LLM_BACKEND", "ollama")
+LOCAL_LLM_MODEL: str = os.getenv("LOCAL_LLM_MODEL", "llama3")
+LOCAL_LLM_URL: str = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/api/generate")
+
+# If using LOCAL_LLM_BACKEND=command, this command will be executed and passed the prompt via stdin.
+# Example: "ollama run llama3"
+LOCAL_LLM_COMMAND: str = os.getenv("LOCAL_LLM_COMMAND", "ollama run llama3")
+
+# Seconds to wait for a local LLM response.
+LOCAL_LLM_TIMEOUT: int = int(os.getenv("LOCAL_LLM_TIMEOUT", "120"))
+
+
+# ── Admin API ────────────────────────────────────────────────────────────────
+
+ADMIN_USER: str = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASS: str = os.getenv("ADMIN_PASS", "choggedFunction69")
+ADMIN_BIND: str = os.getenv("ADMIN_BIND", "127.0.0.1")
+ADMIN_PORT: int = int(os.getenv("ADMIN_PORT", "8123"))
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 # Day of week for the automatic weekly run ("monday" … "sunday").

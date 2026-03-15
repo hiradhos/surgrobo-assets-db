@@ -69,6 +69,15 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
 
+    # ── Vetting decisions ─────────────────────────────────────────────────────
+    vet_map: dict[str, dict] = {}
+    try:
+        vet_rows = conn.execute("SELECT * FROM asset_vetting").fetchall()
+        for r in vet_rows:
+            vet_map[r["source_key"]] = dict(r)
+    except sqlite3.OperationalError:
+        vet_map = {}
+
     # ── GitHub-sourced assets ──────────────────────────────────────────────────
     rows = conn.execute("""
         SELECT a.repo_full_name, a.file_type, a.stars, a.license, a.discovered_at,
@@ -89,6 +98,9 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
     color_idx = 0
 
     for repo_full_name, repo_rows in by_repo.items():
+        vet = vet_map.get(f"github:{repo_full_name}")
+        if vet and vet.get("decision") == "reject":
+            continue
         first = repo_rows[0]
 
         seen_ft: list[str] = []
@@ -111,18 +123,48 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             except Exception:
                 pass
 
+        corrected_tags: list[str] = []
+        if vet and vet.get("corrected_tags"):
+            try:
+                corrected_tags = json.loads(vet.get("corrected_tags") or "[]")
+            except Exception:
+                corrected_tags = []
+
+        name = first["title"] or repo_full_name.split("/")[-1]
+        if vet and vet.get("corrected_name"):
+            name = vet.get("corrected_name")
+
+        body_part = first["body_part"] or ""
+        organ_system = "general"
+        sex = first["sex"] or "unknown"
+        condition_type = first["condition_type"] or "unknown"
+        creation_method = first["creation_method"] or "unknown"
+        patient_type = "generic"
+
+        if vet:
+            body_part = vet.get("corrected_body_part") or body_part
+            organ_system = vet.get("corrected_organ_system") or organ_system
+            sex = vet.get("corrected_sex") or sex
+            condition_type = vet.get("corrected_condition") or condition_type
+            creation_method = vet.get("corrected_creation") or creation_method
+            if vet.get("corrected_age_group"):
+                patient_type = _map_age_group(vet.get("corrected_age_group"))
+
         assets.append({
             "id": f"db-{len(assets) + 1}",
-            "name": first["title"] or repo_full_name.split("/")[-1],
+            "name": name,
             "description": first["description"] or "",
             "fileTypes": seen_ft,
+            "previewUrl": None,
+            "sourceKey": f"github:{repo_full_name}",
+            "previewUrl": None,
             # Anatomy metadata — populated by LLM classifier where available
-            "patientType": "generic",
-            "organSystem": "general",
-            "bodyPart": first["body_part"] or "",
-            "sex": first["sex"] or "unknown",
-            "conditionType": first["condition_type"] or "unknown",
-            "creationMethod": first["creation_method"] or "unknown",
+            "patientType": patient_type,
+            "organSystem": organ_system,
+            "bodyPart": body_part,
+            "sex": sex,
+            "conditionType": condition_type,
+            "creationMethod": creation_method,
             "surgicalSystem": "generic",
             "rlFrameworks": [],
             # Source info
@@ -136,7 +178,7 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             # Provenance
             "authors": authors,
             "year": year,
-            "tags": [],
+            "tags": corrected_tags,
             "downloadUrl": first["url"],
             "license": first["license"] or None,
             "addedAt": str(first["discovered_at"])[:10] if first["discovered_at"] else "",
@@ -153,6 +195,9 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
     conn.close()
 
     for rec in ana_rows:
+        vet = vet_map.get(f"anatomy:{rec['record_id']}")
+        if vet and vet.get("decision") == "reject":
+            continue
         file_types_raw: list[str] = []
         try:
             file_types_raw = json.loads(rec["file_types"] or "[]")
@@ -173,23 +218,44 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
         except Exception:
             pass
 
+        if vet and vet.get("corrected_tags"):
+            try:
+                tags = json.loads(vet.get("corrected_tags") or "[]")
+            except Exception:
+                pass
+
+        name = rec["name"]
+        if vet and vet.get("corrected_name"):
+            name = vet.get("corrected_name")
+
+        organ_system = vet.get("corrected_organ_system") if vet else None
+        body_part = vet.get("corrected_body_part") if vet else None
+        sex = vet.get("corrected_sex") if vet else None
+        condition = vet.get("corrected_condition") if vet else None
+        creation = vet.get("corrected_creation") if vet else None
+        age_group = vet.get("corrected_age_group") if vet else None
+        source_collection = vet.get("corrected_source") if vet else None
+
         assets.append({
             "id": f"ana-{len(assets) + 1}",
-            "name": rec["name"],
+            "name": name,
             "description": rec["description"] or "",
             "fileTypes": seen_ft,
+            "previewUrl": rec["preview_url"] or None,
+            "sourceKey": f"anatomy:{rec['record_id']}",
+            "previewUrl": rec["preview_url"] or None,
             # Anatomy metadata — structured, from the source
-            "patientType": _map_age_group(rec["age_group"]),
-            "organSystem": rec["organ_system"] or "general",
-            "bodyPart": rec["body_part"] or "",
-            "sex": rec["sex"] or "unknown",
-            "conditionType": rec["condition_type"] or "healthy",
-            "creationMethod": rec["creation_method"] or "unknown",
+            "patientType": _map_age_group(age_group or rec["age_group"]),
+            "organSystem": organ_system or rec["organ_system"] or "general",
+            "bodyPart": body_part or rec["body_part"] or "",
+            "sex": sex or rec["sex"] or "unknown",
+            "conditionType": condition or rec["condition_type"] or "healthy",
+            "creationMethod": creation or rec["creation_method"] or "unknown",
             "surgicalSystem": "generic",
             "rlFrameworks": [],
             # Source info
             "sourceType": "atlas-database",
-            "sourceCollection": rec["source_collection"],
+            "sourceCollection": source_collection or rec["source_collection"],
             "category": "anatomical-model",
             "arxivId": None,
             "arxivTitle": None,
