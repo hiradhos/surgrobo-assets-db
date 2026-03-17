@@ -1,4 +1,6 @@
-import { Database, Plus, Github } from 'lucide-react'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Database, Plus, Github, Shield, Trash2, X } from 'lucide-react'
 
 type View = 'database' | 'submit'
 
@@ -6,9 +8,29 @@ interface HeaderProps {
   activeView: View
   onViewChange: (v: View) => void
   totalAssets: number
+  adminAuth: string | null
+  onAdminAuth: (token: string | null) => void
+  editMode: boolean
+  onToggleEdit: () => void
+  selectedCount: number
+  onSelectAllVisible: () => void
+  onClearSelection: () => void
+  onDeleteSelected: () => void
 }
 
-export default function Header({ activeView, onViewChange, totalAssets }: HeaderProps) {
+export default function Header({
+  activeView,
+  onViewChange,
+  totalAssets,
+  adminAuth,
+  onAdminAuth,
+  editMode,
+  onToggleEdit,
+  selectedCount,
+  onSelectAllVisible,
+  onClearSelection,
+  onDeleteSelected,
+}: HeaderProps) {
   const navItems: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: 'database', label: 'Database', icon: <Database size={15} /> },
     { id: 'submit',   label: 'Submit',   icon: <Plus size={15} /> },
@@ -58,6 +80,55 @@ export default function Header({ activeView, onViewChange, totalAssets }: Header
 
           {/* Right meta */}
           <div className="flex items-center gap-4 shrink-0">
+            {activeView === 'database' && (
+              <div className="flex items-center gap-2">
+                {adminAuth ? (
+                  <button
+                    onClick={onToggleEdit}
+                    className={[
+                      'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all border',
+                      editMode
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                        : 'text-gray-400 hover:text-gray-200 border-white/[0.06]',
+                    ].join(' ')}
+                  >
+                    <Shield size={14} />
+                    {editMode ? 'Exit Edit' : 'Edit Mode'}
+                  </button>
+                ) : (
+                  <AdminLoginButton onAuth={onAdminAuth} />
+                )}
+                {editMode && (
+                  <>
+                    <button
+                      onClick={onSelectAllVisible}
+                      className="rounded-md px-3 py-1.5 text-xs font-medium border border-white/[0.06] text-gray-400 hover:text-gray-200 transition-all"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={onClearSelection}
+                      className="rounded-md px-3 py-1.5 text-xs font-medium border border-white/[0.06] text-gray-400 hover:text-gray-200 transition-all"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={onDeleteSelected}
+                      disabled={selectedCount === 0}
+                      className={[
+                        'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border transition-all',
+                        selectedCount === 0
+                          ? 'cursor-not-allowed border-red-500/10 text-red-300/40'
+                          : 'border-red-500/30 text-red-300 hover:bg-red-500/10',
+                      ].join(' ')}
+                    >
+                      <Trash2 size={14} />
+                      Delete ({selectedCount})
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] px-3 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-[11px] font-medium text-gray-400">
@@ -78,5 +149,69 @@ export default function Header({ activeView, onViewChange, totalAssets }: Header
         </div>
       </div>
     </header>
+  )
+}
+
+function AdminLoginButton({ onAuth }: { onAuth: (token: string) => void }) {
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [adminUser, setAdminUser] = useState('')
+  const [adminPass, setAdminPass] = useState('')
+
+  const handleAdminLogin = () => {
+    if (adminUser === 'admin' && adminPass === 'choggedFunction69') {
+      const token = btoa(`${adminUser}:${adminPass}`)
+      onAuth(token)
+      setAdminOpen(false)
+      setAdminUser('')
+      setAdminPass('')
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setAdminOpen(true)}
+        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium border border-white/[0.06] text-gray-400 hover:text-gray-200 transition-all"
+      >
+        <Shield size={14} />
+        Admin Login
+      </button>
+      {adminOpen && typeof document !== 'undefined'
+        ? createPortal(
+          <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-4">
+            <div className="w-full max-w-sm rounded-xl border border-white/[0.08] bg-[#0b1324] p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Admin Login</h3>
+                <button onClick={() => setAdminOpen(false)} className="text-gray-500 hover:text-gray-300">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                <input
+                  value={adminUser}
+                  onChange={e => setAdminUser(e.target.value)}
+                  placeholder="Username"
+                  className="w-full rounded-md bg-black/30 border border-white/[0.08] px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
+                />
+                <input
+                  type="password"
+                  value={adminPass}
+                  onChange={e => setAdminPass(e.target.value)}
+                  placeholder="Password"
+                  className="w-full rounded-md bg-black/30 border border-white/[0.08] px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
+                />
+                <button
+                  onClick={handleAdminLogin}
+                  className="w-full rounded-md bg-cyan-500/20 border border-cyan-500/30 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/30 transition-all"
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
+    </>
   )
 }

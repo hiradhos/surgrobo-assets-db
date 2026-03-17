@@ -1,0 +1,124 @@
+MedShapeNet Installation & Ingestion Protocol
+============================================
+
+Overview
+--------
+This repo supports a full MedShapeNet pipeline:
+1) Download MedShapeNet assets (or use a pre-downloaded folder)
+2) Build a manifest and preview images
+3) Ingest records into SQLite (backend DB)
+4) Export the frontend JSON (public DB)
+5) View assets in the website
+
+Key Paths
+---------
+- Local MedShapeNet assets: medshapenet_assets/
+- Manifest: medshapenet_assets/manifest.json
+- Thumbnail previews: public/medshapenet_previews/
+- SQLite DB: data/surgsim.db
+- Frontend export: public/db-assets.json
+
+Dependencies
+------------
+Install backend deps (including thumbnail rendering libs):
+- pip install -r backend/requirements.txt
+
+Optional performance add-on:
+- pip install PyOpenGL_accelerate
+
+Frontend dev server dependency for local asset serving:
+- npm install -D sirv
+
+If you run on a headless GPU box, use EGL:
+- PYOPENGL_PLATFORM=egl
+
+Step 1: Download MedShapeNet Assets
+-----------------------------------
+If assets are already present in medshapenet_assets/, skip to Step 2.
+
+To download via the MedShapeNet Python API, run:
+- python -m backend.scraper.medshapenet_sync
+
+To download specific datasets only:
+- python -m backend.scraper.medshapenet_sync --datasets "medshapenetcore/ASOCA,medshapenetcore/AVT"
+
+Notes:
+- medshapenet_sync flattens the dataset folders into medshapenet_assets/
+- It also scans local files to build the manifest
+
+Step 2: Generate Manifest + Thumbnails
+--------------------------------------
+If you only want to rebuild the manifest (no download):
+- python -m backend.scraper.medshapenet_sync --skip-download
+
+Generate real PNG thumbnails from mesh files:
+- python -m backend.scraper.medshapenet_thumbs
+
+Force re-render all thumbnails:
+- python -m backend.scraper.medshapenet_thumbs --force
+
+Limit to a test batch:
+- python -m backend.scraper.medshapenet_thumbs --limit 100
+
+What this does:
+- Reads medshapenet_assets/manifest.json
+- Renders PNGs to public/medshapenet_previews/
+- Updates manifest preview_url entries to point to PNGs
+
+Step 3: Ingest into SQLite + Export Frontend JSON
+-------------------------------------------------
+Recommended single command (does everything):
+- python -m backend.scraper.medshapenet_ingest
+
+What this runs:
+- medshapenet_sync (manifest + optional download)
+- medshapenet_thumbs (PNG rendering)
+- Inserts MedShapeNet records into data/surgsim.db
+- Exports public/db-assets.json
+
+Useful flags:
+- --skip-sync            Skip medshapenet_sync
+- --sync-download        Allow downloading missing files
+- --skip-thumbnails      Skip PNG rendering
+- --force-thumbnails     Re-render thumbnails even if PNGs exist
+- --skip-export          Skip public/db-assets.json export
+
+Example: re-render all thumbs without re-downloading:
+- python -m backend.scraper.medshapenet_ingest --force-thumbnails
+
+Step 4: View in the Website
+---------------------------
+Start the frontend dev server:
+- npm run dev
+
+Notes:
+- The UI reads public/db-assets.json
+- Preview images are served from public/medshapenet_previews/
+- Downloads are served from /medshapenet_assets in dev (Vite middleware)
+
+Production hosting note:
+- You must serve medshapenet_assets/ at URL path /medshapenet_assets
+
+Troubleshooting
+---------------
+"Trimesh object has no attribute remove_degenerate_faces"
+- Fixed in code. Ensure you are running latest repo changes.
+
+"No OpenGL_accelerate module loaded"
+- This is a warning, not a failure. Install PyOpenGL_accelerate to speed up.
+
+Assets not visible in UI
+- Ensure public/db-assets.json exists and includes sourceCollection="medshapenet".
+- Ensure year filter is not excluding entries (year can be null).
+
+Slow rendering
+- Use a GPU and set PYOPENGL_PLATFORM=egl if headless.
+- You can render in batches with --limit.
+
+Quick Checklist
+---------------
+- medshapenet_assets/ populated
+- public/medshapenet_previews/ contains PNGs
+- data/surgsim.db contains MedShapeNet records
+- public/db-assets.json includes MedShapeNet items
+- npm run dev shows MedShapeNet assets with PNG previews

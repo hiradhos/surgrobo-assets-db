@@ -11,7 +11,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
-from . import config, db
+from . import config, db, export
 
 log = logging.getLogger(__name__)
 
@@ -100,6 +100,11 @@ class AdminHandler(BaseHTTPRequestHandler):
                     )
                     deleted_anatomy += cur.rowcount if cur.rowcount is not None else 0
                     db.ban_source(key, "anatomy", "admin delete", conn)
+
+        try:
+            export.export_assets()
+        except Exception:
+            log.exception("Failed to export db-assets.json after admin delete")
 
         self._set_headers(200)
         self.wfile.write(

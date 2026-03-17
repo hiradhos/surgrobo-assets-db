@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
+msg() { printf "%s\n" "$*"; }
+
+if [[ -z "${VIRTUAL_ENV:-}" && -d ".venv" && -f ".venv/bin/activate" ]]; then
+  # Activate local venv if present and not already active.
+  # shellcheck disable=SC1091
+  source ".venv/bin/activate"
+  msg "Activated .venv"
+fi
+
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  msg "ERROR: python3 not found. Install Python 3.10+ and retry."
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  msg "ERROR: npm not found. Install Node.js + npm and retry."
+  exit 1
+fi
+
+if [[ -z "${PYOPENGL_PLATFORM:-}" && -z "${DISPLAY:-}" ]]; then
+  export PYOPENGL_PLATFORM=egl
+  msg "PYOPENGL_PLATFORM not set and DISPLAY is empty; defaulting to EGL."
+fi
+
+msg "Installing backend deps..."
+"$PYTHON_BIN" -m pip install -r backend/requirements.txt
+
+msg "Installing frontend deps..."
+npm install
+
+ASSET_DIR="medshapenet_assets"
+need_download=0
+if [[ ! -d "$ASSET_DIR" ]]; then
+  need_download=1
+else
+  if ! find "$ASSET_DIR" -maxdepth 2 -type f \( -iname "*.stl" -o -iname "*.obj" -o -iname "*.ply" -o -iname "*.glb" -o -iname "*.gltf" \) | head -n 1 | grep -q .; then
+    need_download=1
+  fi
+fi
+
+if [[ "$need_download" -eq 1 ]]; then
+  msg "MedShapeNet assets not found. Downloading..."
+  "$PYTHON_BIN" -m backend.scraper.medshapenet_sync
+else
+  msg "MedShapeNet assets found. Rebuilding manifest only (no download)..."
+  "$PYTHON_BIN" -m backend.scraper.medshapenet_sync --skip-download
+fi
+
+msg "Generating PNG thumbnails (forced)..."
+"$PYTHON_BIN" -m backend.scraper.medshapenet_thumbs --force
+
+msg "Ingesting into SQLite and exporting public/db-assets.json..."
+"$PYTHON_BIN" -m backend.scraper.medshapenet_ingest --skip-sync --skip-thumbnails
+
+msg "Done."
+msg "To view in the browser, run: npm run dev"

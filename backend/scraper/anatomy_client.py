@@ -430,6 +430,47 @@ def scrape_medshapenet(session: requests.Session, known_ids: set[str]) -> list[A
     with accompanying metadata CSVs.
     """
     records: list[AnatomyRecord] = []
+    manifest_path = config.MEDSHAPENET_MANIFEST_PATH
+    if manifest_path.exists():
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            log.warning("medshapenet: failed to read manifest %s", manifest_path)
+            payload = []
+
+        if isinstance(payload, dict):
+            items = payload.get("records") or payload.get("items") or []
+        else:
+            items = payload if isinstance(payload, list) else []
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            record_id = item.get("record_id") or item.get("id")
+            if not record_id or record_id in known_ids:
+                continue
+            records.append(AnatomyRecord(
+                record_id=record_id,
+                source_collection=item.get("source_collection", "medshapenet"),
+                name=item.get("name", "MedShapeNet 2.0 Asset"),
+                description=item.get("description", ""),
+                body_part=item.get("body_part", ""),
+                organ_system=item.get("organ_system", "general"),
+                age_group=item.get("age_group", "adult"),
+                sex=item.get("sex", "unknown"),
+                condition_type=item.get("condition_type", "healthy"),
+                creation_method=item.get("creation_method", "ct-scan"),
+                file_types=item.get("file_types", []) or [],
+                download_url=item.get("download_url", ""),
+                preview_url=item.get("preview_url", ""),
+                license=item.get("license", "CC BY 4.0"),
+                tags=item.get("tags", []) or [],
+                authors=item.get("authors", []) or [],
+                year=item.get("year"),
+            ))
+
+        log.info("medshapenet: %d new records (manifest)", len(records))
+        return records
     OWNER, REPO = "GLARKI", "MedShapeNet2.0"
 
     # Read the repo tree to discover anatomy categories

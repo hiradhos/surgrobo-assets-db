@@ -1,2 +1,10 @@
 .env
 .claude
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+data/surgsim.db
+public/db-assets.json
+medshapenet_assets/
+public/medshapenet_previews/

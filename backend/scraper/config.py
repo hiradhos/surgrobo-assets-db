@@ -207,6 +207,28 @@ DB_PATH: Path = Path(os.getenv(
 # Ensure the data directory exists at import time.
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+# ── MedShapeNet local assets ────────────────────────────────────────────────
+
+MEDSHAPENET_ASSETS_DIR: Path = Path(os.getenv(
+    "MEDSHAPENET_ASSETS_DIR",
+    str(Path(__file__).resolve().parents[2] / "medshapenet_assets"),
+))
+
+MEDSHAPENET_MANIFEST_PATH: Path = Path(os.getenv(
+    "MEDSHAPENET_MANIFEST_PATH",
+    str(MEDSHAPENET_ASSETS_DIR / "manifest.json"),
+))
+
+MEDSHAPENET_PREVIEW_DIR: Path = Path(os.getenv(
+    "MEDSHAPENET_PREVIEW_DIR",
+    str(Path(__file__).resolve().parents[2] / "public" / "medshapenet_previews"),
+))
+
+MEDSHAPENET_PREVIEW_BASE_URL: str = os.getenv(
+    "MEDSHAPENET_PREVIEW_BASE_URL",
+    "/medshapenet_previews",
+)
+
 
 # ── Local LLM vetting ─────────────────────────────────────────────────────────
 
