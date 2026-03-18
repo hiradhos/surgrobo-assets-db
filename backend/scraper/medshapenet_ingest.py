@@ -15,7 +15,7 @@ import sys
 from contextlib import contextmanager
 
 from . import config, db
-from .anatomy_client import scrape_all_anatomy_sources
+from .anatomy_client import _session, scrape_medshapenet
 from .export import export_assets
 
 log = logging.getLogger(__name__)
@@ -73,9 +73,11 @@ def ingest_medshapenet(
 
     db.init_db()
     with db._connect() as conn:
-        known = db.get_known_anatomy_ids(conn) | db.get_banned_anatomy_ids(conn)
+        banned = db.get_banned_anatomy_ids(conn)
 
-    records = scrape_all_anatomy_sources(known)
+    # Force a full refresh from the MedShapeNet manifest so preview_url updates.
+    session = _session()
+    records = [r for r in scrape_medshapenet(session, set()) if r.record_id not in banned]
 
     added = updated = 0
     with db._connect() as conn:

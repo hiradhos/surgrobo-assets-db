@@ -26,6 +26,35 @@ from . import config
 log = logging.getLogger(__name__)
 
 _ASSET_EXTS = {".stl", ".obj", ".ply", ".glb", ".gltf"}
+_COLOR_PINK = (0.94, 0.42, 0.72, 1.0)
+_COLOR_GRAY = (0.55, 0.57, 0.60, 1.0)
+_COLOR_RED = (0.86, 0.20, 0.20, 1.0)
+_COLOR_BLUE = (0.15, 0.45, 0.82, 1.0)
+_SUFFIX_COLOR = {
+    "teeth": _COLOR_PINK,
+    "coronaryartery": _COLOR_RED,
+    "thoracicaortawithbranches": _COLOR_RED,
+    "artery": _COLOR_RED,
+    "aorta": _COLOR_RED,
+    "aorticvesseltree": _COLOR_RED,
+    "vein": _COLOR_BLUE,
+    "cava": _COLOR_BLUE,
+    "surgicalinstrument": _COLOR_GRAY,
+    "craniotomy": _COLOR_GRAY,
+    "airway": _COLOR_PINK,
+    "inferioralveolarnerve": _COLOR_PINK,
+    "kidney": _COLOR_PINK,
+    "cyst": _COLOR_PINK,
+    "esophagus": _COLOR_PINK,
+    "stomach": _COLOR_PINK,
+    "duodenum": _COLOR_PINK,
+    "pancreas": _COLOR_PINK,
+    "liver": _COLOR_PINK,
+    "spleen": _COLOR_PINK,
+    "gallbladder": _COLOR_PINK,
+    "gland": _COLOR_PINK,
+    "facevr": _COLOR_PINK,
+}
 
 
 @dataclass
@@ -49,6 +78,60 @@ def _write_manifest(path: Path, records: list[dict[str, Any]]) -> None:
     path.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
 
+def _normalize_text(*values: Any) -> str:
+    parts: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            parts.extend(str(v) for v in value if v is not None)
+        else:
+            parts.append(str(value))
+    return " ".join(parts).lower()
+
+
+def _extract_suffix(record: dict[str, Any]) -> str:
+    for key in ("local_path", "download_url"):
+        value = record.get(key)
+        if not value:
+            continue
+        name = Path(str(value)).name
+        stem = Path(name).stem
+        if "_" in stem:
+            return stem.rsplit("_", 1)[1].lower()
+        return stem.lower()
+    record_id = record.get("record_id") or ""
+    if "_" in record_id:
+        return record_id.rsplit("_", 1)[1].lower()
+    return record_id.lower()
+
+
+def _pick_thumbnail_color(record: dict[str, Any]) -> tuple[float, float, float, float]:
+    suffix = _extract_suffix(record)
+    if suffix in _SUFFIX_COLOR:
+        return _SUFFIX_COLOR[suffix]
+
+    text = _normalize_text(
+        record.get("name"),
+        record.get("record_id"),
+        record.get("body_part"),
+        record.get("organ_system"),
+        record.get("tags"),
+    )
+
+    if "vein" in text:
+        return _COLOR_BLUE
+    if "surgicalinstrument" in text or "surgical instrument" in text or "instrument" in text:
+        return _COLOR_GRAY
+    if "tooth" in text or "teeth" in text:
+        return _COLOR_PINK
+    if "kidney" in text or "renal" in text or "esophagus" in text or "brain" in text:
+        return _COLOR_PINK
+    if "heart" in text or "cardiac" in text or "aorta" in text or "artery" in text or "vessel" in text:
+        return _COLOR_RED
+    return _COLOR_PINK
+
+
 def _look_at(eye, target, up):
     import numpy as np
 
@@ -66,7 +149,12 @@ def _look_at(eye, target, up):
     return mat
 
 
-def _render_png(mesh_path: Path, out_path: Path, size: tuple[int, int]) -> None:
+def _render_png(
+    mesh_path: Path,
+    out_path: Path,
+    size: tuple[int, int],
+    base_color: tuple[float, float, float, float],
+) -> None:
     import numpy as np
     import pyrender
     import trimesh
@@ -98,8 +186,7 @@ def _render_png(mesh_path: Path, out_path: Path, size: tuple[int, int]) -> None:
         mesh.apply_scale(1.0 / scale)
 
     material = pyrender.MetallicRoughnessMaterial(
-        # Pink material for visual consistency
-        baseColorFactor=(0.94, 0.42, 0.72, 1.0),
+        baseColorFactor=base_color,
         metallicFactor=0.15,
         roughnessFactor=0.65,
     )
@@ -173,7 +260,8 @@ def generate_thumbnails(
             continue
 
         try:
-            _render_png(local_path, out_path, size)
+            base_color = _pick_thumbnail_color(item)
+            _render_png(local_path, out_path, size, base_color)
             item["preview_url"] = f"{preview_base_url.rstrip('/')}/{preview_name}"
             stats.rendered += 1
         except Exception as exc:
