@@ -28,7 +28,7 @@ def _basic_auth_ok(header: str | None) -> bool:
 
 
 class AdminHandler(BaseHTTPRequestHandler):
-    server_version = "SurgSimAdmin/0.1"
+    server_version = "NetterAdmin/0.1"
 
     def _set_headers(self, code: int = 200) -> None:
         self.send_response(code)

@@ -1,1 +1,1 @@
-# SurgSim DB scraper package
+# Netter-DB scraper package

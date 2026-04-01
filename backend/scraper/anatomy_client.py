@@ -42,7 +42,7 @@ from .models import AnatomyRecord
 
 log = logging.getLogger(__name__)
 
-_UA = "SurgSimDB/1.0 (anatomy scraper; github.com/surgrobo/surgrobo-assets-db)"
+_UA = "NetterDB/1.0 (anatomy scraper)"
 _TIMEOUT = 15
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -219,6 +219,63 @@ def _infer_sex(text: str) -> str:
     return "unknown"
 
 
+# ── Human-only filter ──────────────────────────────────────────────────────────
+
+# Animals, insects, and other non-human organisms to exclude
+_NON_HUMAN_TERMS: frozenset[str] = frozenset({
+    # Generic animal terms
+    "animal", "veterinary", "vet ", "fauna", "wildlife", "zoo ",
+    # Mammals
+    "dog", "canine", "cat", "feline", "mouse", "rat", "rodent", "rabbit",
+    "pig", "porcine", "bovine", "cow", "horse", "equine", "sheep", "ovine",
+    "goat", "caprine", "monkey", "primate", "ape", "gorilla", "chimpanzee",
+    "elephant", "whale", "dolphin", "bat", "bear", "lion", "tiger", "wolf",
+    "deer", "fox", "squirrel", "guinea pig", "hamster", "ferret", "gerbil",
+    # Birds
+    "bird", "avian", "chicken", "hen", "rooster", "duck", "goose", "turkey",
+    "parrot", "penguin", "eagle", "hawk", "owl", "crow", "pigeon",
+    # Reptiles & amphibians
+    "reptile", "lizard", "snake", "crocodile", "alligator", "turtle",
+    "tortoise", "frog", "toad", "salamander", "gecko", "iguana",
+    # Fish
+    "fish", "shark", "salmon", "zebrafish", "tuna", "ray", "eel",
+    # Invertebrates
+    "insect", "bug", "spider", "ant", "bee", "fly", "mosquito", "worm",
+    "crab", "lobster", "shrimp", "jellyfish", "octopus", "squid",
+    # Fictional / non-human
+    "alien", "monster", "creature", "fantasy", "fictional", "robot anatomy",
+    "android", "cyborg", "zombie",
+    # Plants / other
+    "plant", "tree", "flower", "fungus", "mushroom", "bacteria", "virus",
+})
+
+# Terms that confirm a record is human (override false positives from the above)
+_HUMAN_CONFIRM_TERMS: frozenset[str] = frozenset({
+    "human", "homo sapiens", "patient", "adult male", "adult female",
+    "visible human", "clinical", "medical imaging", "mri", "ct scan",
+    "anatomy", "anatomical", "surgical", "cadaver", "cadaveric",
+})
+
+
+def _is_human_anatomy(name: str, description: str, tags: list[str]) -> bool:
+    """
+    Return True if this record is most likely a human anatomy model.
+    Rejects animals, insects, fictional species, and other non-human content.
+    """
+    text = " ".join([name or "", description or ""] + (tags or [])).lower()
+
+    # If any strong human-confirm term is present, accept it
+    if any(t in text for t in _HUMAN_CONFIRM_TERMS):
+        return True
+
+    # Reject if any non-human organism term is found
+    if any(t in text for t in _NON_HUMAN_TERMS):
+        return False
+
+    # Default to accept (most atlas-database sources are human-focused)
+    return True
+
+
 # ── Source: HumanAtlas.io (HRA CCF 3D Reference Library) ──────────────────────
 
 def scrape_humanatlas(session: requests.Session, known_ids: set[str]) -> list[AnatomyRecord]:
@@ -349,6 +406,20 @@ def scrape_nih3d(session: requests.Session, known_ids: set[str]) -> list[Anatomy
                 t.strip() for t in str(tags_raw).split(",") if t.strip()
             ]
 
+            # Only include human anatomy
+            if not _is_human_anatomy(name, description, tags):
+                log.debug("nih3d: skipping non-human record '%s'", name)
+                continue
+
+            # Author: NIH 3D API exposes the submitter as "created_by" or nested "user"
+            author_raw = (
+                item.get("created_by")
+                or (item.get("user") or {}).get("display_name", "")
+                or (item.get("user") or {}).get("username", "")
+                or ""
+            )
+            author = str(author_raw).strip()
+
             combined = f"{name} {description} {' '.join(tags)}"
             records.append(AnatomyRecord(
                 record_id=record_id,
@@ -366,6 +437,7 @@ def scrape_nih3d(session: requests.Session, known_ids: set[str]) -> list[Anatomy
                 preview_url=preview_url,
                 license=license_str,
                 tags=tags[:10],
+                authors=[author] if author else [],
             ))
 
     endpoints = [
@@ -662,6 +734,9 @@ def scrape_anatomytool(session: requests.Session, known_ids: set[str]) -> list[A
                 name = base.replace("-", " ").replace("_", " ").strip()
                 combined = name
                 ext = link.rsplit(".", 1)[-1].upper()
+                if not _is_human_anatomy(name, "", []):
+                    log.debug("anatomytool: skipping non-human link '%s'", name)
+                    continue
                 records.append(AnatomyRecord(
                     record_id=record_id,
                     source_collection="anatomytool",
@@ -717,6 +792,12 @@ def scrape_anatomytool(session: requests.Session, known_ids: set[str]) -> list[A
             file_exts = list({l.rsplit(".", 1)[-1].upper() for l in dl_links}) if dl_links else ["OBJ"]
 
             combined = f"{name} {description}"
+
+            # Only include human anatomy
+            if not _is_human_anatomy(name, description, []):
+                log.debug("anatomytool: skipping non-human record '%s'", name)
+                continue
+
             records.append(AnatomyRecord(
                 record_id=record_id,
                 source_collection="anatomytool",
@@ -796,6 +877,10 @@ def scrape_sketchfab(session: requests.Session, known_ids: set[str]) -> list[Ana
                     except Exception:
                         pass
 
+                # Author — prefer displayName, fall back to username
+                user = model.get("user") or {}
+                author = user.get("displayName") or user.get("username") or ""
+
                 # License
                 license_data = model.get("license") or {}
                 license_str = license_data.get("label", "") if isinstance(license_data, dict) else ""
@@ -810,6 +895,11 @@ def scrape_sketchfab(session: requests.Session, known_ids: set[str]) -> list[Ana
 
                 model_url = f"https://sketchfab.com/3d-models/{uid}"
                 combined = f"{name} {description} {' '.join(raw_tags)}"
+
+                # Only include human anatomy
+                if not _is_human_anatomy(name, description, raw_tags):
+                    log.debug("sketchfab: skipping non-human model '%s'", name)
+                    continue
 
                 records.append(AnatomyRecord(
                     record_id=record_id,
@@ -827,6 +917,7 @@ def scrape_sketchfab(session: requests.Session, known_ids: set[str]) -> list[Ana
                     preview_url=preview_url,
                     license=license_str,
                     tags=raw_tags[:8],
+                    authors=[author] if author else [],
                     year=year,
                 ))
 
@@ -886,6 +977,20 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
             tags_raw = [t.get("name", "") for t in item.get("tags", []) if isinstance(t, dict)]
             combined = f"{name} {description} {' '.join(tags_raw)}"
 
+            # Only include human anatomy
+            if not _is_human_anatomy(name, description, tags_raw):
+                log.debug("embodi3d: skipping non-human record '%s'", name)
+                continue
+
+            # Author: IPS Community Suite API exposes uploader under "author"
+            author_obj = item.get("author") or {}
+            author = (
+                author_obj.get("displayName")
+                or author_obj.get("name")
+                or author_obj.get("username")
+                or ""
+            ) if isinstance(author_obj, dict) else str(author_obj)
+
             records.append(AnatomyRecord(
                 record_id=record_id,
                 source_collection="embodi3d",
@@ -900,6 +1005,7 @@ def scrape_embodi3d(session: requests.Session, known_ids: set[str]) -> list[Anat
                 file_types=["STL"],
                 download_url=url,
                 tags=tags_raw[:8],
+                authors=[author] if author else [],
             ))
 
         time.sleep(1.5)
@@ -1017,6 +1123,17 @@ def scrape_thingiverse(session: requests.Session, known_ids: set[str]) -> list[A
             tags = [t.get("name", "") for t in item.get("tags", []) if isinstance(t, dict)]
             combined = f"{name} {description} {' '.join(tags)}"
 
+            # Author: Thingiverse API returns creator under "creator"
+            creator = item.get("creator") or {}
+            if isinstance(creator, dict):
+                author = (
+                    creator.get("name")
+                    or " ".join(filter(None, [creator.get("first_name", ""), creator.get("last_name", "")]))
+                    or creator.get("username", "")
+                ).strip()
+            else:
+                author = ""
+
             records.append(AnatomyRecord(
                 record_id=record_id,
                 source_collection="thingiverse",
@@ -1031,6 +1148,7 @@ def scrape_thingiverse(session: requests.Session, known_ids: set[str]) -> list[A
                 file_types=["STL"],
                 download_url=url_thing,
                 tags=tags[:8],
+                authors=[author] if author else [],
             ))
         time.sleep(1)
 

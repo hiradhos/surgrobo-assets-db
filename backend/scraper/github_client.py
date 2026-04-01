@@ -1,5 +1,5 @@
 """
-GitHub client for the SurgSim DB scraper.
+GitHub client for the Netter-DB scraper.
 
 Responsibilities
 ────────────────
@@ -42,7 +42,7 @@ def _headers() -> dict[str, str]:
     h = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "SurgSimDB-Scraper/1.0",
+        "User-Agent": "NetterDB-Scraper/1.0",
     }
     if config.GITHUB_TOKEN:
         h["Authorization"] = f"Bearer {config.GITHUB_TOKEN}"

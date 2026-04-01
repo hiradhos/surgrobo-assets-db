@@ -4,8 +4,10 @@
 __pycache__/
 *.pyc
 node_modules/
-data/surgsim.db
 public/db-assets.json
 medshapenet_assets/
 public/medshapenet_previews/
-data/surgsim.db
+data/netter.db
+.DS_Store
+dist/*
+eye_segmentation/IXI-T1

@@ -13,6 +13,23 @@ export default function App() {
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [visibleKeys, setVisibleKeys] = useState<string[]>([])
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark'
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (isDark) {
+      root.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      root.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }, [isDark])
 
   useEffect(() => {
     fetch('/db-assets.json')
@@ -48,7 +65,7 @@ export default function App() {
   const handleClearSelection = () => setSelected(new Set())
 
   return (
-    <div className="min-h-screen bg-[#070d1a] bg-grid">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <Header
         activeView={view}
         onViewChange={setView}
@@ -61,6 +78,8 @@ export default function App() {
         onSelectAllVisible={handleSelectAllVisible}
         onClearSelection={handleClearSelection}
         onDeleteSelected={handleDeleteSelected}
+        isDark={isDark}
+        onToggleDark={() => setIsDark(v => !v)}
       />
 
       <main>
@@ -74,16 +93,16 @@ export default function App() {
             onVisibleKeysChange={setVisibleKeys}
           />
         )}
-        {view === 'submit'   && <SubmitPage />}
+        {view === 'submit' && <SubmitPage />}
       </main>
 
-      <footer className="mt-16 border-t border-white/[0.04] py-6 text-center">
-        <p className="text-[11px] text-gray-700">
-          SurgSim DB — Open Surgical Robotics Asset Database for RL Research
+      <footer className="mt-16 border-t border-slate-200 dark:border-slate-700/50 py-6 text-center bg-white dark:bg-slate-900">
+        <p className="text-xs text-slate-500 dark:text-slate-500">
+          Netter-DB
           {' · '}
-          <a href="https://github.com" className="hover:text-gray-500 transition-colors">GitHub</a>
+          <a href="https://github.com" className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">GitHub</a>
           {' · '}
-          <a href="https://arxiv.org" className="hover:text-gray-500 transition-colors">arXiv</a>
+          <a href="https://arxiv.org" className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">arXiv</a>
         </p>
       </footer>
     </div>

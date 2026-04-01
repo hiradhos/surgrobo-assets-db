@@ -1,5 +1,5 @@
 """
-arXiv API client for the SurgSim DB scraper.
+arXiv API client for the Netter-DB scraper.
 
 Uses the arXiv Atom feed API (no authentication required).
 Docs: https://arxiv.org/help/api/user-manual
@@ -152,7 +152,7 @@ def fetch_papers(
         url = f"{_ARXIV_API_BASE}?{urllib.parse.urlencode(params)}"
 
         try:
-            resp = requests.get(url, timeout=30, headers={"User-Agent": "SurgSimDB-Scraper/1.0"})
+            resp = requests.get(url, timeout=30, headers={"User-Agent": "NetterDB-Scraper/1.0"})
             resp.raise_for_status()
         except requests.RequestException as exc:
             log.error("arXiv request failed (start=%d): %s", start, exc)

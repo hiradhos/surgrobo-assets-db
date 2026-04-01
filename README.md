@@ -1,6 +1,6 @@
 # surgrobo-assets-db
 
-**SurgSim DB** — a Surgical Robotics Asset Database that automatically discovers and catalogues simulation assets from surgical robotics research.
+**Netter-DB** — a Surgical Robotics Asset Database that automatically discovers and catalogues simulation assets from surgical robotics research.
 
 ## Overview
 
@@ -57,7 +57,7 @@ SCHEDULE_DAY=monday SCHEDULE_TIME=03:30 python -m backend.scraper.run
 
 ## Data
 
-The SQLite database is stored at `data/surgsim.db`.
+The SQLite database is stored at `data/netter.db`.
 
 ### Local LLM vetting
 

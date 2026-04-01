@@ -13,12 +13,12 @@ export default function AssetGrid({ assets, selectable, selectedIds, onToggleSel
   if (assets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center animate-fade-in">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.03] border border-white/[0.06]">
-          <PackageOpen size={28} className="text-gray-600" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <PackageOpen size={28} className="text-slate-400 dark:text-slate-500" />
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-400">No assets match your filters</p>
-          <p className="text-xs text-gray-600 mt-1">Try broadening your search or clearing some filters</p>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No assets match your filters</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Try broadening your search or clearing some filters</p>
         </div>
       </div>
     )

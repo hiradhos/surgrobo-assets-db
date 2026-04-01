@@ -15,7 +15,7 @@ Key Paths
 - Local MedShapeNet assets: medshapenet_assets/
 - Manifest: medshapenet_assets/manifest.json
 - Thumbnail previews: public/medshapenet_previews/
-- SQLite DB: data/surgsim.db
+- SQLite DB: data/netter.db
 - Frontend export: public/db-assets.json
 
 Dependencies
@@ -73,7 +73,7 @@ Recommended single command (does everything):
 What this runs:
 - medshapenet_sync (manifest + optional download)
 - medshapenet_thumbs (PNG rendering)
-- Inserts MedShapeNet records into data/surgsim.db
+- Inserts MedShapeNet records into data/netter.db
 - Exports public/db-assets.json
 
 Useful flags:
@@ -119,6 +119,6 @@ Quick Checklist
 ---------------
 - medshapenet_assets/ populated
 - public/medshapenet_previews/ contains PNGs
-- data/surgsim.db contains MedShapeNet records
+- data/netter.db contains MedShapeNet records
 - public/db-assets.json includes MedShapeNet items
 - npm run dev shows MedShapeNet assets with PNG previews

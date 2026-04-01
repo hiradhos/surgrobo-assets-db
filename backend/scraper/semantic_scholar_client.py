@@ -1,5 +1,5 @@
 """
-Semantic Scholar API client for the SurgSim DB scraper.
+Semantic Scholar API client for the Netter-DB scraper.
 
 Semantic Scholar (S2) indexes papers from arXiv, IEEE, PubMed, ACM, and many
 other sources under a single API. It is particularly useful because:
@@ -79,7 +79,7 @@ _REQUEST_DELAY = 1.1  # seconds (safe for 1 req/s unauthenticated)
 
 
 def _headers() -> dict[str, str]:
-    return {"User-Agent": "SurgSimDB-Scraper/1.0"}
+    return {"User-Agent": "NetterDB-Scraper/1.0"}
 
 
 def _get(params: dict, *, retries: int = 3) -> dict | None:

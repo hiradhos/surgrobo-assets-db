@@ -13,14 +13,14 @@ const RL_OPTS: RLFramework[]   = ['isaac-sim','mujoco','gazebo','pybullet','orbi
 const PATIENT_OPTS: PatientType[] = ['adult','pediatric','neonatal','phantom','generic']
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{children}</label>
+  return <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">{children}</label>
 }
 
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] py-2.5 px-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-cyan-500/40 transition-colors"
+      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 py-2.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-colors"
     />
   )
 }
@@ -30,7 +30,7 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
     <textarea
       {...props}
       rows={3}
-      className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] py-2.5 px-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-cyan-500/40 transition-colors resize-none"
+      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 py-2.5 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-colors resize-none"
     />
   )
 }
@@ -40,7 +40,7 @@ function Select({ value, onChange, children }: { value: string; onChange: (v: st
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-full rounded-lg border border-white/[0.07] bg-[#0d1526] py-2.5 px-3 text-sm text-gray-200 outline-none focus:border-cyan-500/40 transition-colors"
+      className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 py-2.5 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-colors"
     >
       {children}
     </select>
@@ -53,14 +53,22 @@ function ToggleChip({ active, onClick, children }: { active: boolean; onClick: (
       type="button"
       onClick={onClick}
       className={[
-        'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all',
+        'rounded border px-2.5 py-1 text-[11px] font-medium transition-all',
         active
-          ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-          : 'border-white/[0.06] bg-white/[0.02] text-gray-400 hover:border-white/[0.12] hover:text-gray-300',
+          ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-blue-700 dark:hover:text-blue-300',
       ].join(' ')}
     >
       {children}
     </button>
+  )
+}
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm p-6 flex flex-col gap-4">
+      {children}
+    </div>
   )
 }
 
@@ -96,18 +104,18 @@ export default function SubmitPage() {
   if (submitted) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-24 flex flex-col items-center gap-6 text-center animate-fade-in">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
-          <CheckCircle2 size={40} className="text-emerald-400" />
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700/50">
+          <CheckCircle2 size={40} className="text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-white">Asset Submitted</h3>
-          <p className="text-sm text-gray-500 mt-2">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Asset Submitted</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
             Your asset has been submitted for review. It will appear in the database once validated.
           </p>
         </div>
         <button
           onClick={() => setSubmitted(false)}
-          className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-6 py-2 text-sm font-medium text-cyan-300 hover:bg-cyan-500/20 transition-all"
+          className="rounded-lg bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-sm font-medium text-white transition-colors"
         >
           Submit Another
         </button>
@@ -119,18 +127,18 @@ export default function SubmitPage() {
     <div className="mx-auto max-w-3xl px-6 py-8">
 
       <div className="mb-8">
-        <h2 className="text-xl font-bold text-white">Submit an Asset</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Submit an Asset</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Manually add a surgical robotics simulation asset from GitHub, a dataset repository, or a published paper.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
         {/* Basic info */}
-        <div className="glass rounded-xl p-6 flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-            <Upload size={14} className="text-cyan-400" />
+        <SectionCard>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <Upload size={14} className="text-blue-600 dark:text-blue-400" />
             Asset Information
           </h3>
 
@@ -183,11 +191,11 @@ export default function SubmitPage() {
               onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
             />
           </div>
-        </div>
+        </SectionCard>
 
         {/* File formats */}
-        <div className="glass rounded-xl p-6 flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+        <SectionCard>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
             <FileTypeBadge type="USD" size="sm" />
             File Formats *
           </h3>
@@ -201,7 +209,7 @@ export default function SubmitPage() {
                   'rounded border font-mono text-[11px] font-medium px-2 py-0.5 transition-all',
                   form.fileTypes.includes(ft)
                     ? FILE_TYPE_COLORS[ft]
-                    : 'border-white/[0.06] bg-white/[0.02] text-gray-500 hover:border-white/[0.12] hover:text-gray-400',
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 dark:hover:border-slate-600',
                 ].join(' ')}
               >
                 .{ft}
@@ -209,16 +217,16 @@ export default function SubmitPage() {
             ))}
           </div>
           {form.fileTypes.length === 0 && (
-            <div className="flex items-center gap-2 text-[11px] text-yellow-600">
+            <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400">
               <AlertCircle size={12} />
               Select at least one file format
             </div>
           )}
-        </div>
+        </SectionCard>
 
-        {/* Patient / anatomy */}
-        <div className="glass rounded-xl p-6 flex flex-col gap-5">
-          <h3 className="text-sm font-semibold text-gray-300">Clinical Parameters</h3>
+        {/* Clinical parameters */}
+        <SectionCard>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Clinical Parameters</h3>
 
           <div>
             <Label>Patient Type</Label>
@@ -263,12 +271,12 @@ export default function SubmitPage() {
               ))}
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Source links */}
-        <div className="glass rounded-xl p-6 flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-            <Link2 size={14} className="text-cyan-400" />
+        <SectionCard>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <Link2 size={14} className="text-blue-600 dark:text-blue-400" />
             Source & Links
           </h3>
 
@@ -323,21 +331,21 @@ export default function SubmitPage() {
               />
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Submit */}
         <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={() => setForm(f => ({ ...f, name: '', description: '' }))}
-            className="rounded-lg border border-white/[0.08] px-5 py-2.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            className="rounded-lg border border-slate-300 dark:border-slate-600 px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-400 transition-colors"
           >
             Clear
           </button>
           <button
             type="submit"
             disabled={!form.name || !form.description || form.fileTypes.length === 0}
-            className="flex items-center gap-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-6 py-2.5 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-6 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <CheckCircle2 size={14} />
             Submit Asset

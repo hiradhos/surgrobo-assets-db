@@ -1,10 +1,9 @@
 import { Search, X, ChevronDown, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
-import type { FilterState, FileType, OrganSystem, PatientType, RLFramework, SourceType, SurgicalSystem } from '../types'
+import type { FilterState, FileType, OrganSystem, PatientType, SourceType, SurgicalSystem } from '../types'
 import {
   ORGAN_LABELS,
   SURGICAL_SYSTEM_LABELS,
-  RL_FRAMEWORK_LABELS,
   FILE_TYPE_COLORS,
   DEFAULT_FILTERS,
 } from '../types'
@@ -15,7 +14,7 @@ interface SearchPanelProps {
   resultCount: number
 }
 
-type FilterSection = 'patient' | 'organ' | 'robot' | 'format' | 'framework' | 'source'
+type FilterSection = 'patient' | 'organ' | 'robot' | 'format' | 'source'
 
 const PATIENT_OPTIONS: { value: PatientType; label: string; sub?: string }[] = [
   { value: 'adult',     label: 'Adult',     sub: '>18 yr' },
@@ -38,15 +37,11 @@ const ROBOT_OPTIONS: SurgicalSystem[] = [
 
 const FORMAT_OPTIONS: FileType[] = ['USD', 'OBJ', 'STL', 'URDF', 'FBX', 'PLY', 'GLTF', 'SDF', 'DAE', 'MJCF']
 
-const FRAMEWORK_OPTIONS: RLFramework[] = [
-  'isaac-sim', 'mujoco', 'gazebo', 'pybullet', 'orbit', 'robosuite', 'sapien', 'webots', 'other',
-]
-
-const SOURCE_OPTIONS: { value: SourceType; label: string; color: string }[] = [
-  { value: 'arxiv',   label: 'arXiv',          color: 'text-red-300' },
-  { value: 'github',  label: 'GitHub',         color: 'text-emerald-300' },
-  { value: 'dataset', label: 'Dataset Hub',    color: 'text-blue-300' },
-  { value: 'manual',  label: 'Manual Entry',   color: 'text-gray-300' },
+const SOURCE_OPTIONS: { value: SourceType; label: string }[] = [
+  { value: 'arxiv',   label: 'arXiv' },
+  { value: 'github',  label: 'GitHub' },
+  { value: 'dataset', label: 'Dataset Hub' },
+  { value: 'manual',  label: 'Manual Entry' },
 ]
 
 function SectionHeader({
@@ -65,17 +60,17 @@ function SectionHeader({
       onClick={onToggle}
       className="w-full flex items-center justify-between py-2 text-left group"
     >
-      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-gray-400 group-hover:text-gray-300 transition-colors">
+      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
         {title}
         {activeCount > 0 && (
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500/20 text-[10px] font-bold text-cyan-400">
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
             {activeCount}
           </span>
         )}
       </span>
       <ChevronDown
         size={13}
-        className={['text-gray-600 transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
+        className={['text-slate-400 dark:text-slate-500 transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
       />
     </button>
   )
@@ -94,10 +89,10 @@ function ToggleChip({
     <button
       onClick={onClick}
       className={[
-        'rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all text-left',
+        'rounded border px-2.5 py-1 text-[11px] font-medium transition-all text-left',
         active
-          ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
-          : 'border-white/[0.06] bg-white/[0.02] text-gray-400 hover:border-white/[0.12] hover:text-gray-300',
+          ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-blue-700 dark:hover:text-blue-300',
       ].join(' ')}
     >
       {children}
@@ -111,12 +106,11 @@ function toggle<T>(arr: T[], val: T): T[] {
 
 export default function SearchPanel({ filters, onChange, resultCount }: SearchPanelProps) {
   const [expanded, setExpanded] = useState<Record<FilterSection, boolean>>({
-    patient:   true,
-    organ:     true,
-    robot:     true,
-    format:    true,
-    framework: false,
-    source:    false,
+    patient: true,
+    organ:   true,
+    robot:   true,
+    format:  true,
+    source:  true,
   })
 
   const toggle_section = (s: FilterSection) =>
@@ -125,22 +119,22 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
   const isDefault = JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS)
 
   return (
-    <aside className="w-64 shrink-0 flex flex-col gap-0">
+    <aside className="w-60 shrink-0 flex flex-col gap-0">
 
       {/* Search box */}
-      <div className="relative mb-5">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+      <div className="relative mb-4">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
           type="text"
           placeholder="Search assets, authors, tags..."
           value={filters.query}
           onChange={e => onChange({ ...filters, query: e.target.value })}
-          className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] py-2 pl-8 pr-8 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-cyan-500/40 focus:ring-0 transition-colors"
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 py-2 pl-8 pr-8 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-colors"
         />
         {filters.query && (
           <button
             onClick={() => onChange({ ...filters, query: '' })}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           >
             <X size={13} />
           </button>
@@ -148,14 +142,15 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
       </div>
 
       {/* Result count + reset */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-xs text-gray-500">
-          <span className="text-white font-semibold">{resultCount}</span> result{resultCount !== 1 ? 's' : ''}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-slate-900 dark:text-white font-semibold">{resultCount}</span>{' '}
+          result{resultCount !== 1 ? 's' : ''}
         </span>
         {!isDefault && (
           <button
             onClick={() => onChange({ ...DEFAULT_FILTERS })}
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-cyan-400 transition-colors"
+            className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
           >
             <RotateCcw size={11} />
             Reset
@@ -163,7 +158,7 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
         )}
       </div>
 
-      <div className="flex flex-col divide-y divide-white/[0.05]">
+      <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-700/50">
 
         {/* Patient type */}
         <div className="py-3">
@@ -182,7 +177,7 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
                   onClick={() => onChange({ ...filters, patientTypes: toggle(filters.patientTypes, opt.value) })}
                 >
                   <span>{opt.label}</span>
-                  {opt.sub && <span className="ml-1 text-gray-500">{opt.sub}</span>}
+                  {opt.sub && <span className="ml-1 text-slate-400 dark:text-slate-500">{opt.sub}</span>}
                 </ToggleChip>
               ))}
             </div>
@@ -252,35 +247,12 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
                   className={[
                     'rounded border font-mono text-[11px] font-medium px-2 py-0.5 transition-all',
                     filters.fileTypes.includes(opt)
-                      ? FILE_TYPE_COLORS[opt] + ' opacity-100'
-                      : 'border-white/[0.06] bg-white/[0.02] text-gray-500 hover:border-white/[0.12] hover:text-gray-400',
+                      ? FILE_TYPE_COLORS[opt]
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 dark:hover:border-slate-600',
                   ].join(' ')}
                 >
                   .{opt}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* RL Framework */}
-        <div className="py-3">
-          <SectionHeader
-            title="RL Framework"
-            expanded={expanded.framework}
-            onToggle={() => toggle_section('framework')}
-            activeCount={filters.rlFrameworks.length}
-          />
-          {expanded.framework && (
-            <div className="mt-2 flex flex-wrap gap-1.5 animate-fade-in">
-              {FRAMEWORK_OPTIONS.map(opt => (
-                <ToggleChip
-                  key={opt}
-                  active={filters.rlFrameworks.includes(opt)}
-                  onClick={() => onChange({ ...filters, rlFrameworks: toggle(filters.rlFrameworks, opt) })}
-                >
-                  {RL_FRAMEWORK_LABELS[opt]}
-                </ToggleChip>
               ))}
             </div>
           )}
@@ -302,7 +274,7 @@ export default function SearchPanel({ filters, onChange, resultCount }: SearchPa
                   active={filters.sourcetypes.includes(opt.value)}
                   onClick={() => onChange({ ...filters, sourcetypes: toggle(filters.sourcetypes, opt.value) })}
                 >
-                  <span className={opt.color}>{opt.label}</span>
+                  {opt.label}
                 </ToggleChip>
               ))}
             </div>

@@ -1,5 +1,5 @@
 """
-SurgSim DB — Weekly Scraper Orchestrator
+Netter-DB — Weekly Scraper Orchestrator
 
 Usage
 ─────
@@ -124,7 +124,7 @@ def run_scrape(lookback_days: int = config.ARXIV_LOOKBACK_DAYS) -> ScrapeRun:
     run = ScrapeRun(started_at=started_at)
 
     log.info("=" * 60)
-    log.info("SurgSim DB scraper starting  (lookback=%d days)", lookback_days)
+    log.info("Netter-DB scraper starting  (lookback=%d days)", lookback_days)
     log.info("=" * 60)
 
     db.init_db()
@@ -372,7 +372,7 @@ def main() -> None:
     _configure_logging()
 
     parser = argparse.ArgumentParser(
-        description="SurgSim DB — arXiv / PubMed / Semantic Scholar / GitHub scraper",
+        description="Netter-DB — arXiv / PubMed / Semantic Scholar / GitHub scraper",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -387,9 +387,18 @@ def main() -> None:
         metavar="N",
         help="How many days back to search all sources",
     )
+    parser.add_argument(
+        "--export-only",
+        action="store_true",
+        help="Re-export public/db-assets.json from the existing DB without re-scraping",
+    )
     args = parser.parse_args()
 
-    if args.once:
+    if args.export_only:
+        from .export import export_assets
+        n = export_assets()
+        log.info("export-only: wrote %d records", n)
+    elif args.once:
         run_scrape(lookback_days=args.lookback_days)
     else:
         _schedule_and_run()

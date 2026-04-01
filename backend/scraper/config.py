@@ -1,5 +1,5 @@
 """
-Configuration for the SurgSim DB scraper.
+Configuration for the Netter-DB scraper.
 
 All tuneable parameters live here. Override via environment variables
 (loaded from a .env file at the repo root) or edit directly.
@@ -201,7 +201,7 @@ SKIP_DIRS: frozenset[str] = frozenset({
 
 DB_PATH: Path = Path(os.getenv(
     "DB_PATH",
-    str(Path(__file__).resolve().parents[2] / "data" / "surgsim.db"),
+    str(Path(__file__).resolve().parents[2] / "data" / "netter.db"),
 ))
 
 # Ensure the data directory exists at import time.

@@ -1,7 +1,7 @@
 # Eye Segmentation Pipeline (A-eye / nnU-Net)
 
 Automated 3D segmentation of the human eye and orbit from T1-weighted MRI,
-followed by mesh export into `eye_mri_assets/` for ingestion into the SurgSim DB.
+followed by mesh export into `eye_mri_assets/` for ingestion into Netter-DB.
 
 Based on the **A-eye** project:
 - GitHub: https://github.com/jaimebarran/a-eye

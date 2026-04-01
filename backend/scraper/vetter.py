@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import os
 from typing import Any
@@ -18,48 +19,85 @@ from . import config, db
 
 log = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = (
-    "You are an expert curator of surgical robotics simulation assets. "
-    "Your job is to vet assets for high-fidelity anatomical and surgical training. "
-    "KEEP high-quality surgical robotics simulation tools or environments when they "
-    "clearly include or are built around realistic surgical/anatomical assets (e.g., "
-    "surgical simulation toolkits, surgical RL environments, tissue/organ simulators). "
-    "Reject anything that is artistic, stylized, cartoonish, illustrative, toy-like, "
-    "game-like, decorative, or otherwise not a faithful anatomical or surgical asset. "
-    "For anatomy-database assets (e.g., Sketchfab, NIH 3D, HumanAtlas, AnatomyTool), "
-    "keep entries that are clearly human anatomy (organs, bones, vessels, musculoskeletal "
-    "structures), even if not a surgical simulator. "
-    "If the entry is a full-body human model or whole anatomy set, set "
-    "organ_system=\"whole body\" and body_part=\"whole body\". "
-    "Only keep assets that are clearly accurate anatomical structures or surgical "
-    "robotics simulation assets suitable for reinforcement learning. "
-    "If uncertain, reject.\n\n"
-    "You must also correct metadata when the provided fields are wrong or vague: "
-    "organ system, body part, age group (adult|pediatric|fetal|generic), sex "
-    "(male|female|unknown), condition type (healthy|tumor|fracture|defect|variant|"
-    "pathologic|unknown), creation method (ct-scan|mri|photogrammetry|synthetic|"
-    "anatomist|cadaver|unknown), and source collection if it is wrong. "
-    "If the title is indirect or unclear, provide a better name. "
-    "Be conservative about edits; only change when clearly justified.\n\n"
-    "Do NOT use Markdown or code fences. Output JSON only with this schema:\n"
-    "{\n"
-    "  \"keep\": true|false,\n"
-    "  \"confidence\": 0.0-1.0,\n"
-    "  \"reason\": \"short rationale\",\n"
-    "  \"corrected\": {\n"
-    "    \"name\": string|null,\n"
-    "    \"organ_system\": string|null,\n"
-    "    \"body_part\": string|null,\n"
-    "    \"age_group\": string|null,\n"
-    "    \"sex\": string|null,\n"
-    "    \"condition_type\": string|null,\n"
-    "    \"creation_method\": string|null,\n"
-    "    \"source_collection\": string|null,\n"
-    "    \"tags\": [string] | null\n"
-    "  }\n"
-    "}\n"
-    "If you are unsure, set keep=false and provide your best corrections.\n"
-)
+_SYSTEM_PROMPT = """\
+You are an expert curator for Netter-DB, a database of 3D assets used in \
+surgical robotics simulation and medical AI research. Your job is two-fold: \
+(1) decide whether to KEEP or REJECT each asset, and (2) correct its metadata.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KEEP — asset MUST satisfy ALL of these:
+  • Pertains to HUMAN subjects only (not animals, insects, or fictional species)
+  • Realistic and clinically accurate (not stylized, cartoon, illustrative, or \
+decorative)
+  • Intended for medical/surgical use: hospital settings, clinical training, \
+surgical simulation, medical imaging, RL/AI surgical research
+  • Is one of:
+      – Human anatomical structure (organ, bone, vessel, tissue, whole-body)
+      – Surgical instrument or OR equipment (real, used in actual surgery)
+      – Surgical robot or robotic arm used in real clinical practice
+      – Kinematics/URDF/SDF/MJCF model of a real surgical robot
+      – Surgical video dataset from real OR procedures
+
+REJECT — asset MUST be rejected if ANY of these apply:
+  • Non-human anatomy: animal organs, insect models, alien/monster/creature \
+anatomy, fictional species
+  • Art / entertainment: video game assets, fantasy models, sci-fi props, \
+decorative sculptures, collectibles, figurines
+  • Stylized or unrealistic: cartoon anatomy, educational illustrations, \
+low-polygon game meshes, 3D-print art
+  • Non-clinical context: gym/fitness anatomy, sports training only, \
+veterinary-only use
+  • No clear medical or surgical relevance
+  • If uncertain, REJECT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY — assign exactly one of these values in corrected.category \
+(or null if unchanged):
+  "anatomical-model"   — Human anatomical structure (organ, bone, tissue, \
+whole-body model)
+  "or-infrastructure"  — Surgical instruments, OR equipment, phantoms, \
+implants, prosthetics, hospital furniture
+  "robots"             — Surgical robotic systems or robot arms (da Vinci, \
+Versius, Hugo, etc.)
+  "kinematics"         — URDF/SDF/MJCF/kinematics model of a surgical robot
+  "footage"            — Surgical or endoscopic video dataset from real procedures
+  Leave category null if the provided category is already correct.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METADATA CORRECTIONS — only change fields that are clearly wrong or vague:
+  organ_system  : cardiac|hepatobiliary|urologic|gynecologic|colorectal|\
+thoracic|neurologic|orthopedic|vascular|gastrointestinal|general
+  body_part     : specific structure (e.g. "liver", "femur", "aorta")
+  age_group     : adult|pediatric|fetal|generic
+  sex           : male|female|unknown
+  condition_type: healthy|tumor|fracture|defect|variant|pathologic|unknown
+  creation_method: ct-scan|mri|photogrammetry|synthetic|anatomist|cadaver|unknown
+  name          : provide a cleaner title only if the current one is vague or \
+misleading
+  source_collection: correct only if clearly wrong
+  tags          : a list of 3–8 concise lowercase descriptive tags, or null to \
+keep existing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT — JSON only, no Markdown, no code fences:
+{
+  "keep": true|false,
+  "confidence": 0.0–1.0,
+  "reason": "one sentence explaining the decision",
+  "corrected": {
+    "name": string|null,
+    "organ_system": string|null,
+    "body_part": string|null,
+    "age_group": string|null,
+    "sex": string|null,
+    "condition_type": string|null,
+    "creation_method": string|null,
+    "source_collection": string|null,
+    "category": string|null,
+    "tags": [string]|null
+  }
+}
+"""
 
 
 def _call_local_llm(prompt: str) -> str | None:
@@ -213,8 +251,10 @@ def _build_prompt(kind: str, details: dict[str, Any]) -> str:
     return (
         f"Asset type: {kind}\n"
         "Asset details (JSON):\n"
-        f"{json.dumps(details, ensure_ascii=True)}\n"
-        "Return JSON only."
+        f"{json.dumps(details, ensure_ascii=True, indent=2)}\n\n"
+        "Evaluate this asset against the rules above. "
+        "If the current_category field is wrong, provide the correct one in "
+        "corrected.category. Return JSON only."
     )
 
 
@@ -239,7 +279,7 @@ def vet_assets() -> None:
         repos = conn.execute(
             """
             SELECT r.full_name, r.url, r.description, r.stars, r.license,
-                   r.asset_paths, r.file_types, r.last_updated
+                   r.asset_paths, r.file_types, r.last_updated, r.category
             FROM repos r
             ORDER BY r.last_seen_at DESC
             """
@@ -278,6 +318,7 @@ def vet_assets() -> None:
             "file_types": json.loads(repo["file_types"] or "[]"),
             "asset_paths": json.loads(repo["asset_paths"] or "[]"),
             "papers": papers_by_repo.get(repo["full_name"], [])[:3],
+            "current_category": repo["category"] or None,
         }
 
         prompt = _build_prompt("github_repo", details)
@@ -319,6 +360,12 @@ def vet_assets() -> None:
 
         log.info("vetting: [%d/%d] anatomy %s", idx, total_records, rec["record_id"])
 
+        tags = json.loads(rec["tags"] or "[]")
+        # Re-derive the category the export would assign so the LLM can verify it
+        from .export import _classify_anatomy_category
+        inferred_category = _classify_anatomy_category(
+            rec["name"], rec["description"] or "", tags
+        )
         details = {
             "record_id": rec["record_id"],
             "name": rec["name"],
@@ -332,9 +379,10 @@ def vet_assets() -> None:
             "creation_method": rec["creation_method"],
             "file_types": json.loads(rec["file_types"] or "[]"),
             "download_url": rec["download_url"],
-            "tags": json.loads(rec["tags"] or "[]"),
+            "tags": tags,
             "authors": json.loads(rec["authors"] or "[]"),
             "year": rec["year"],
+            "current_category": inferred_category,
         }
 
         prompt = _build_prompt("anatomy_record", details)

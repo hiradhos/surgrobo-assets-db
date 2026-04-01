@@ -1,5 +1,5 @@
 """
-Data models for the SurgSim DB scraper pipeline.
+Data models for the Netter-DB scraper pipeline.
 """
 from __future__ import annotations
 

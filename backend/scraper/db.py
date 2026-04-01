@@ -1,5 +1,5 @@
 """
-SQLite persistence layer for the SurgSim DB scraper.
+SQLite persistence layer for the Netter-DB scraper.
 
 Schema
 ──────
@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS asset_vetting (
     corrected_condition     TEXT,
     corrected_creation      TEXT,
     corrected_source        TEXT,
+    corrected_category      TEXT,
     corrected_tags          TEXT NOT NULL DEFAULT '[]',
     updated_at              TEXT NOT NULL
 );
@@ -188,6 +189,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "ALTER TABLE assets ADD COLUMN condition_type TEXT",
         "ALTER TABLE assets ADD COLUMN creation_method TEXT",
         "ALTER TABLE assets ADD COLUMN sex TEXT",
+        # Citation string for anatomy records
+        "ALTER TABLE anatomy_records ADD COLUMN citation TEXT NOT NULL DEFAULT ''",
+        # LLM-corrected category field for vetting (anatomical-model | or-infrastructure | ...)
+        "ALTER TABLE asset_vetting ADD COLUMN corrected_category TEXT",
     ]
     for sql in migrations:
         try:
@@ -477,8 +482,9 @@ def upsert_vetting(
             (source_key, source_type, decision, confidence, reason,
              corrected_name, corrected_body_part, corrected_organ_system,
              corrected_age_group, corrected_sex, corrected_condition,
-             corrected_creation, corrected_source, corrected_tags, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             corrected_creation, corrected_source, corrected_category,
+             corrected_tags, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_key) DO UPDATE SET
             decision               = excluded.decision,
             confidence             = excluded.confidence,
@@ -491,6 +497,7 @@ def upsert_vetting(
             corrected_condition    = excluded.corrected_condition,
             corrected_creation     = excluded.corrected_creation,
             corrected_source       = excluded.corrected_source,
+            corrected_category     = excluded.corrected_category,
             corrected_tags         = excluded.corrected_tags,
             updated_at             = excluded.updated_at
         """,
@@ -508,6 +515,7 @@ def upsert_vetting(
             corrected.get("condition_type"),
             corrected.get("creation_method"),
             corrected.get("source_collection"),
+            corrected.get("category"),
             json.dumps(corrected.get("tags") or []),
             _now(),
         ),

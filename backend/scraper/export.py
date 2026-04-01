@@ -1,5 +1,5 @@
 """
-Export the surgsim.db assets + anatomy_records tables to public/db-assets.json
+Export the netter.db assets + anatomy_records tables to public/db-assets.json
 for the frontend.
 
 Called automatically at the end of each scrape run.
@@ -39,6 +39,32 @@ log = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _OUT_PATH = _REPO_ROOT / "public" / "db-assets.json"
 
+# Keywords that indicate an atlas-database record is OR infrastructure, not anatomy
+_ANATOMY_INSTRUMENT_KEYWORDS: frozenset[str] = frozenset({
+    'trocar', 'needle', 'forceps', 'catheter', 'suture', 'stapler',
+    'retractor', 'clamp', 'scissors', 'scalpel', 'cannula', 'clipper',
+    'clip applier', 'dissector', 'grasper', 'hook', 'electrocautery',
+    'cautery', 'electrosurgical', 'probe', 'stent', 'drain', 'port',
+    'syringe', 'pill', 'tablet', 'capsule', 'medication', 'drug',
+    'surgical tool', 'surgical instrument', 'laparoscopic instrument',
+    'surgical equipment', 'hospital bed', 'surgical table', 'drape',
+    'phantom', 'manikin', 'mannequin', 'endoscope', 'laparoscope',
+    'speculum', 'dilator', 'spreader', 'scope', 'bottle', 'vial',
+    'bipolar', 'monopolar', 'electrode', 'burr', 'drill', 'saw',
+    'mallet', 'chisel', 'osteotome', 'curette', 'elevator', 'rasp',
+    'impactor', 'reamer', 'rod', 'screw', 'plate', 'implant',
+    'prosthesis', 'prosthetic',
+})
+
+
+def _classify_anatomy_category(name: str, description: str, tags: list[str]) -> str:
+    """Return 'anatomical-model' or 'or-infrastructure' for atlas-database records."""
+    text = ' '.join([name or '', description or ''] + (tags or [])).lower()
+    if any(kw in text for kw in _ANATOMY_INSTRUMENT_KEYWORDS):
+        return 'or-infrastructure'
+    return 'anatomical-model'
+
+
 _COLORS = [
     "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b",
     "#ec4899", "#3b82f6", "#ef4444", "#84cc16",
@@ -53,6 +79,109 @@ _FT_MAP = {
     "FBX": "FBX", "PLY": "PLY", "SDF": "SDF",
     "DAE": "DAE", "MJCF": "MJCF",
 }
+
+
+_COLLECTION_CITATIONS: dict[str, str] = {
+    # Confirmed by user
+    "medshapenet": (
+        "Li, J. et al., 2023. MedShapeNet - A Large-Scale Dataset of 3D Medical Shapes "
+        "for Computer Vision. arXiv preprint arXiv.2308.16139."
+    ),
+    # HuBMAP Human Reference Atlas 3D CCF — canonical Sci Data paper
+    "humanatlas": (
+        "Börner, K. et al., 2023. Anatomical structures, cell types and biomarkers "
+        "of the Human Reference Atlas. Scientific Data, 10, 272."
+    ),
+    # BodyParts3D — DBCLS/Mitsuhiro Hayashi; original RIKEN BodyParts3D project
+    "bodyparts3d": (
+        "Mitsuhiro, H. et al., 2008. BodyParts3D: 3D structure database for anatomical concepts. "
+        "Nucleic Acids Research, 36(suppl_1), D662–D666."
+    ),
+}
+
+# Maps Sketchfab license label → (short name, CC license URL)
+_SKETCHFAB_LICENSE_MAP: dict[str, tuple[str, str]] = {
+    "CC Attribution":                          ("CC BY 4.0",        "https://creativecommons.org/licenses/by/4.0/"),
+    "CC Attribution-ShareAlike":               ("CC BY-SA 4.0",     "https://creativecommons.org/licenses/by-sa/4.0/"),
+    "CC Attribution-NoDerivs":                 ("CC BY-ND 4.0",     "https://creativecommons.org/licenses/by-nd/4.0/"),
+    "CC Attribution-NonCommercial":            ("CC BY-NC 4.0",     "https://creativecommons.org/licenses/by-nc/4.0/"),
+    "CC Attribution-NonCommercial-ShareAlike": ("CC BY-NC-SA 4.0",  "https://creativecommons.org/licenses/by-nc-sa/4.0/"),
+    "CC Attribution-NonCommercial-NoDerivs":   ("CC BY-NC-ND 4.0",  "https://creativecommons.org/licenses/by-nc-nd/4.0/"),
+}
+
+# Per-platform citation templates for sources that lack canonical papers.
+# These are formatted as: prefix + optional author + " " + model_name + suffix.
+_PLATFORM_CITATION_TEMPLATES: dict[str, tuple[str, str]] = {
+    # "{author}. {name}. NIH 3D Print Exchange. {url}"
+    "nih3d":       ("{author}{name}. NIH 3D Print Exchange. {url}",),
+    # "{author}. {name}. AnatomyTool.org. {url}"
+    "anatomytool": ("{author}{name}. AnatomyTool.org. {url}",),
+    # "{author}. {name}. Embodi3D. {url}"
+    "embodi3d":    ("{author}{name}. Embodi3D. {url}",),
+    # "{author}. {name}. Thingiverse. {url}"
+    "thingiverse": ("{author}{name}. Thingiverse. {url}",),
+}
+
+
+def _make_sketchfab_citation(name: str, authors: list[str], download_url: str, license: str) -> str:
+    """
+    "Model Title" by Author Name (model_url) is licensed under CC BY 4.0 (license_url).
+    Follows Sketchfab attribution requirements.
+    """
+    license_short, license_url = _SKETCHFAB_LICENSE_MAP.get(
+        license, (license or "Unknown License", "https://creativecommons.org/licenses/")
+    )
+    author = authors[0] if authors else "Unknown Author"
+    return (
+        f'"{name}" by {author} ({download_url}) '
+        f"is licensed under {license_short} ({license_url})."
+    )
+
+
+def _make_platform_citation(
+    collection: str, name: str, authors: list[str], download_url: str
+) -> str:
+    """
+    Generate a platform attribution citation for sources that don't have academic papers
+    (NIH 3D, AnatomyTool, Embodi3D, Thingiverse). Format: Author. Title. Platform. URL.
+    """
+    template_tuple = _PLATFORM_CITATION_TEMPLATES.get(collection)
+    if not template_tuple:
+        return _make_citation(name=name, authors=authors, year=None, arxiv_id=None)
+    template = template_tuple[0]
+    author_str = f"{authors[0]}. " if authors else ""
+    return template.format(author=author_str, name=name, url=download_url)
+
+
+def _format_author(full_name: str) -> str:
+    """Format 'First Last' → 'Last, F.' for citation use."""
+    parts = full_name.strip().split()
+    if len(parts) >= 2:
+        last = parts[-1]
+        initials = " ".join(p[0] + "." for p in parts[:-1])
+        return f"{last}, {initials}"
+    return full_name
+
+
+def _make_citation(
+    name: str,
+    authors: list[str],
+    year: int | None,
+    arxiv_id: str | None,
+) -> str:
+    """Build an APA-style citation string (no URLs)."""
+    if authors:
+        first_author = _format_author(authors[0])
+        author_str = f"{first_author} et al." if len(authors) > 1 else first_author
+    else:
+        author_str = "Unknown"
+
+    year_str = str(year) if year else "n.d."
+
+    if arxiv_id:
+        return f"{author_str}, {year_str}. {name}. arXiv preprint arXiv.{arxiv_id}."
+    else:
+        return f"{author_str}, {year_str}. {name}."
 
 
 def _norm_ft(ft: str) -> str:
@@ -150,6 +279,13 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             if vet.get("corrected_age_group"):
                 patient_type = _map_age_group(vet.get("corrected_age_group"))
 
+        citation = _make_citation(
+            name=name,
+            authors=authors,
+            year=year,
+            arxiv_id=first["arxiv_id"],
+        )
+
         assets.append({
             "id": f"db-{len(assets) + 1}",
             "name": name,
@@ -157,7 +293,7 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             "fileTypes": seen_ft,
             "previewUrl": None,
             "sourceKey": f"github:{repo_full_name}",
-            "previewUrl": None,
+            "citation": citation,
             # Anatomy metadata — populated by LLM classifier where available
             "patientType": patient_type,
             "organSystem": organ_system,
@@ -170,7 +306,7 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             # Source info
             "sourceType": "arxiv" if first["arxiv_id"] else "github",
             "sourceCollection": None,
-            "category": first["category"] or None,
+            "category": (vet.get("corrected_category") if vet else None) or first["category"] or None,
             "arxivId": first["arxiv_id"] or None,
             "arxivTitle": first["title"] if first["arxiv_id"] else None,
             "githubRepo": repo_full_name,
@@ -236,14 +372,37 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
         age_group = vet.get("corrected_age_group") if vet else None
         source_collection = vet.get("corrected_source") if vet else None
 
+        # Citation: prefer stored value, else generate based on collection type
+        collection_key = source_collection or rec["source_collection"]
+        stored_citation = rec["citation"] if "citation" in rec.keys() else ""
+        citation = stored_citation or _COLLECTION_CITATIONS.get(collection_key, "")
+        if not citation:
+            if collection_key == "sketchfab":
+                citation = _make_sketchfab_citation(
+                    name=name,
+                    authors=authors,
+                    download_url=rec["download_url"] or "",
+                    license=rec["license"] or "",
+                )
+            elif collection_key in _PLATFORM_CITATION_TEMPLATES:
+                citation = _make_platform_citation(
+                    collection=collection_key,
+                    name=name,
+                    authors=authors,
+                    download_url=rec["download_url"] or "",
+                )
+            else:
+                citation = _make_citation(
+                    name=name, authors=authors, year=rec["year"], arxiv_id=None,
+                )
+
         assets.append({
             "id": f"ana-{len(assets) + 1}",
             "name": name,
             "description": rec["description"] or "",
             "fileTypes": seen_ft,
-            "previewUrl": rec["preview_url"] or None,
+            "previewUrl": (rec["preview_url"] or "").replace(".svg", ".png") or None,
             "sourceKey": f"anatomy:{rec['record_id']}",
-            "previewUrl": rec["preview_url"] or None,
             # Anatomy metadata — structured, from the source
             "patientType": _map_age_group(age_group or rec["age_group"]),
             "organSystem": organ_system or rec["organ_system"] or "general",
@@ -256,7 +415,10 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             # Source info
             "sourceType": "atlas-database",
             "sourceCollection": source_collection or rec["source_collection"],
-            "category": "anatomical-model",
+            "category": (
+                (vet.get("corrected_category") if vet else None)
+                or _classify_anatomy_category(name, rec["description"] or "", tags)
+            ),
             "arxivId": None,
             "arxivTitle": None,
             "githubRepo": None,
@@ -267,6 +429,7 @@ def export_assets(db_path: Path = config.DB_PATH, out_path: Path = _OUT_PATH) ->
             "tags": tags,
             "downloadUrl": rec["download_url"] or None,
             "license": rec["license"] or None,
+            "citation": citation or None,
             "addedAt": str(rec["discovered_at"])[:10] if rec["discovered_at"] else "",
             "thumbnailColor": _COLORS[color_idx % len(_COLORS)],
         })

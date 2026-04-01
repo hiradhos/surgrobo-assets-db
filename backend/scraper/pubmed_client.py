@@ -1,5 +1,5 @@
 """
-PubMed E-utilities client for the SurgSim DB scraper.
+PubMed E-utilities client for the Netter-DB scraper.
 
 Covers journals that rarely appear on arXiv:
   • IEEE Transactions on Medical Robotics and Bionics (T-MRB)
@@ -114,7 +114,7 @@ def _get(url: str, params: dict, *, retries: int = 3) -> requests.Response | Non
         try:
             resp = requests.get(
                 url, params=params, timeout=20,
-                headers={"User-Agent": "SurgSimDB-Scraper/1.0"},
+                headers={"User-Agent": "NetterDB-Scraper/1.0"},
             )
             resp.raise_for_status()
             return resp
